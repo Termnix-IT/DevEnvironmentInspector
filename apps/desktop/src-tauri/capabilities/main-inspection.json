@@ -1,0 +1,7 @@
+{
+  "identifier": "main-inspection",
+  "description": "ローカルのmain画面から、既知カタログの検出とユーザーが選択したJSON保存のみを許可する",
+  "windows": ["main"],
+  "local": true,
+  "permissions": ["allow-get-catalog", "allow-get-snapshot", "allow-scan-environment", "allow-export-snapshot"]
+}

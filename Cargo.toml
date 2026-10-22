@@ -1,5 +1,6 @@
 [workspace]
-members = ["crates/core", "crates/scanner", "crates/mcp-server"]
+members = ["crates/core", "crates/scanner", "crates/mcp-server", "apps/desktop/src-tauri"]
+default-members = ["crates/core", "crates/scanner", "crates/mcp-server"]
 resolver = "3"
 
 [workspace.package]
