@@ -3,6 +3,12 @@
 Windowsの開発ツールを検出し、人間とAIが同じ情報を利用するためのローカルアプリケーションです。
 現在は **検出基盤、独立MCPサーバー、Windows追加検出、TauriのデスクトップGUI** を実装しています。GUIは参照デザインに基づくダークテーマで、画面上の名称はEnvKitです。
 
+## v1.0.0の配布版
+
+[GitHub Releases](https://github.com/Termnix-IT/DevEnvironmentInspector/releases/tag/v1.0.0)からWindows x64用ZIPを取得し、展開して`dei-desktop.exe`を起動します。MCP用の`dei-mcp.exe`とCLI用の`dei.exe`も同梱します。Microsoft Edge WebView2 Runtimeが必要です。インストーラー、自動更新、コード署名は含みません。
+
+`SHA256SUMS.txt`とPowerShellの`Get-FileHash -Algorithm SHA256`でZIPの整合性を確認できます。利用手順と第三者ライセンスはZIP内に同梱しています。
+
 ## 利用方法
 
 開発にはRust 1.95以上、MSVC C++ Build Tools、Windows SDKが必要です。依存関係の初回取得にはネットワークを使用します。実行時にネットワーク接続は必須ではありません。
