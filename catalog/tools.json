@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "tools": [
+    { "id": "node", "name": "Node.js", "category": "runtime", "commands": ["node"] },
+    { "id": "python", "name": "Python", "category": "runtime", "commands": ["python", "python3"] },
+    { "id": "java", "name": "Java", "category": "runtime", "commands": ["java"] },
+    { "id": "go", "name": "Go", "category": "runtime", "commands": ["go"] },
+    { "id": "rust", "name": "Rust", "category": "runtime", "commands": ["rustc"] },
+    { "id": "codex", "name": "Codex CLI", "category": "ai_cli", "commands": ["codex"] },
+    { "id": "claude", "name": "Claude Code", "category": "ai_cli", "commands": ["claude"] },
+    { "id": "gemini", "name": "Gemini CLI", "category": "ai_cli", "commands": ["gemini"] },
+    { "id": "git", "name": "Git", "category": "development", "commands": ["git"] },
+    { "id": "docker", "name": "Docker CLI", "category": "development", "commands": ["docker"] },
+    { "id": "terraform", "name": "Terraform", "category": "development", "commands": ["terraform"] },
+    { "id": "aws", "name": "AWS CLI", "category": "development", "commands": ["aws"] },
+    { "id": "kubectl", "name": "kubectl", "category": "development", "commands": ["kubectl"] },
+    { "id": "npm", "name": "npm", "category": "package_manager", "commands": ["npm"] },
+    { "id": "pnpm", "name": "pnpm", "category": "package_manager", "commands": ["pnpm"] },
+    { "id": "pip", "name": "pip", "category": "package_manager", "commands": ["pip", "pip3"] },
+    { "id": "uv", "name": "uv", "category": "package_manager", "commands": ["uv"] },
+    { "id": "winget", "name": "WinGet", "category": "package_manager", "commands": ["winget"] }
+  ]
+}

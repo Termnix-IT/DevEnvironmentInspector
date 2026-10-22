@@ -1,0 +1,34 @@
+[package]
+name = "inspector-scanner"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[features]
+test-fixtures = []
+
+[dependencies]
+inspector-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+time.workspace = true
+tempfile.workspace = true
+tokio.workspace = true
+process-wrap.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62.2", features = ["Win32_System_Threading"] }
+
+[[bin]]
+name = "dei"
+path = "src/main.rs"
+
+[[bin]]
+name = "dei-probe-fixture"
+path = "tests/fixtures/probe.rs"
+required-features = ["test-fixtures"]
+
+[lints]
+workspace = true
