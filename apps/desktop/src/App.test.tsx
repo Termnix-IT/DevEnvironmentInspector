@@ -176,11 +176,25 @@ describe('環境インスペクターの画面と通信境界', () => {
     await scanned();
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'node' } });
     navigate('Diagnostics');
-    const pythonGroup = screen.getByRole('heading', { name: /Python/ }).closest('section')!;
-    expect(within(pythonGroup).getByText(/登録はありますが/)).toBeTruthy();
-    fireEvent.click(within(pythonGroup).getByRole('button', { name: /詳細を表示/ }));
+    const pythonRow = screen.getByRole('button', { name: 'Pythonの詳細を表示' }).closest('tr')!;
+    expect(within(pythonRow).getByText(/登録はありますが/)).toBeTruthy();
+    fireEvent.click(within(pythonRow).getByRole('button', { name: 'Pythonの詳細を表示' }));
     expect(screen.getByRole('region', { name: 'Pythonの詳細情報' })).toBeTruthy();
     expect((screen.getByRole('searchbox') as HTMLInputElement).value).toBe('');
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Pythonの詳細' }));
+  });
+
+  it('診断表は確認済みの事実と注意、重要度、取得元を保持する', async () => {
+    const withGlobal = structuredClone(view);
+    withGlobal.snapshot.diagnostics.push({ code: 'provider_failed', class: 'fact', severity: 'error', provider: 'registry', installation_id: null });
+    const client = api(); client.scan.mockResolvedValueOnce(withGlobal);
+    await scanned(client); navigate('Diagnostics');
+    const table = screen.getByRole('table', { name: '環境とツールの診断結果' });
+    expect(within(table).getByText('確認済み・エラー')).toBeTruthy();
+    expect(within(table).getByText('注意・警告')).toBeTruthy();
+    expect(within(table).getByText('Environment')).toBeTruthy();
+    expect(within(table).getAllByText('レジストリ').length).toBeGreaterThan(0);
+    expect(within(table).getByText('node-1')).toBeTruthy();
   });
 
   it('MCP画面は5ツールを案内し、未確認の接続状態を接続済みにしない', async () => {
