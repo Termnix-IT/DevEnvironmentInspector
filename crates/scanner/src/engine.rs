@@ -8,8 +8,8 @@ use std::{
 
 use inspector_core::{
     AccessStatus, Catalog, DetectionStatus, Diagnostic, DiagnosticCode, EvidenceClass,
-    Installation, KnownCommand, PathExposure, SCHEMA_VERSION, ScanSnapshot, Severity, TargetOs,
-    ToolScan, VersionResult, VersionSource, VersionStatus,
+    Installation, KnownCommand, PathExposure, Registration, SCHEMA_VERSION, ScanSnapshot, Severity,
+    TargetOs, ToolScan, VersionResult, VersionSource, VersionStatus,
 };
 use thiserror::Error;
 use time::OffsetDateTime;
@@ -124,6 +124,7 @@ impl ScanEngine {
                     tool,
                     status: DetectionStatus::NotFound,
                     installations: Vec::new(),
+                    registrations: Vec::new(),
                     diagnostics: Vec::new(),
                 })
                 .collect(),
@@ -136,6 +137,7 @@ impl ScanEngine {
             .map(|(i, t)| (t.tool.id.clone(), i))
             .collect();
         let mut incomplete = vec![false; snapshot.tools.len()];
+        let mut registration_indices = HashMap::new();
         if self.providers.is_empty() {
             incomplete.fill(true);
         }
@@ -175,6 +177,41 @@ impl ScanEngine {
                 }
             }
             snapshot.diagnostics.extend(discovery.diagnostics);
+            for observation in discovery.registrations {
+                let Some(&index) = tool_indices.get(&observation.tool_id) else {
+                    continue;
+                };
+                if observation
+                    .install_location
+                    .as_deref()
+                    .is_some_and(|p| !is_local_absolute(p))
+                {
+                    incomplete[index] = true;
+                    continue;
+                }
+                let tool = &mut snapshot.tools[index];
+                let key = (index, observation.identity);
+                if let Some(&existing_index) = registration_indices.get(&key) {
+                    let existing: &mut Registration = &mut tool.registrations[existing_index];
+                    if !existing.sources.contains(&observation.evidence) {
+                        existing.sources.push(observation.evidence);
+                    }
+                    existing.package_id = existing.package_id.take().or(observation.package_id);
+                    existing.install_location = existing
+                        .install_location
+                        .take()
+                        .or(observation.install_location);
+                } else {
+                    registration_indices.insert(key, tool.registrations.len());
+                    tool.registrations.push(Registration {
+                        id: String::new(),
+                        package_id: observation.package_id,
+                        install_location: observation.install_location,
+                        sources: vec![observation.evidence],
+                        detected_at: started_at,
+                    });
+                }
+            }
             for candidate in discovery.candidates {
                 let Some(&index) = tool_indices.get(&candidate.tool_id) else {
                     continue;
@@ -224,6 +261,19 @@ impl ScanEngine {
             }
         }
         for (index, tool) in snapshot.tools.iter_mut().enumerate() {
+            if tool.registrations.len() > 16 {
+                tool.registrations.truncate(16);
+                incomplete[index] = true;
+                tool.diagnostics.push(diag(
+                    DiagnosticCode::MetadataLimitReached,
+                    EvidenceClass::Fact,
+                    Severity::Warning,
+                    None,
+                ));
+            }
+            for (n, registration) in tool.registrations.iter_mut().enumerate() {
+                registration.id = format!("{}-registration-{}", tool.tool.id, n + 1);
+            }
             tool.installations.sort_by_key(|i| {
                 (
                     tool.tool
@@ -308,7 +358,7 @@ impl ScanEngine {
         for (index, tool) in snapshot.tools.iter_mut().enumerate() {
             tool.status = if incomplete[index] {
                 DetectionStatus::Incomplete
-            } else if tool.installations.is_empty() {
+            } else if !tool.has_evidence() {
                 DetectionStatus::NotFound
             } else {
                 DetectionStatus::Detected
@@ -321,6 +371,41 @@ impl ScanEngine {
 }
 
 fn diagnose(tool: &mut ToolScan) {
+    if !tool.registrations.is_empty() {
+        if tool.installations.is_empty() {
+            tool.diagnostics.push(diag(
+                DiagnosticCode::RegisteredExecutableUnresolved,
+                EvidenceClass::Caution,
+                Severity::Warning,
+                None,
+            ));
+        }
+        if !tool.installations.iter().any(|i| i.on_path) {
+            tool.diagnostics.push(diag(
+                DiagnosticCode::RegisteredToolNotOnPath,
+                EvidenceClass::Caution,
+                Severity::Info,
+                None,
+            ));
+        }
+        if tool.registrations.iter().any(|r| {
+            let versions: Vec<_> = r
+                .sources
+                .iter()
+                .filter_map(|s| s.reported_version.as_ref())
+                .collect();
+            versions
+                .first()
+                .is_some_and(|first| versions.iter().any(|v| v != first))
+        }) {
+            tool.diagnostics.push(diag(
+                DiagnosticCode::ConflictingRegistrationEvidence,
+                EvidenceClass::Caution,
+                Severity::Warning,
+                None,
+            ));
+        }
+    }
     for &command in &tool.tool.commands {
         let candidates: Vec<_> = tool
             .installations
@@ -393,19 +478,85 @@ fn diagnose(tool: &mut ToolScan) {
         let versions: Vec<_> = installation
             .sources
             .iter()
-            .filter_map(|s| s.reported_version.as_ref())
-            .chain(installation.version.version.as_ref())
+            .filter_map(|s| s.reported_version.as_deref())
+            .chain(installation.version.version.as_deref())
             .collect();
-        if versions
-            .first()
-            .is_some_and(|first| versions.iter().any(|other| first != other))
-        {
+        if let Some(code) = version_evidence_code(installation.command, &versions) {
+            let formatting = code == DiagnosticCode::VersionFormatDifference;
             tool.diagnostics.push(diag(
-                DiagnosticCode::ConflictingVersionEvidence,
-                EvidenceClass::Fact,
-                Severity::Warning,
+                code,
+                if formatting {
+                    EvidenceClass::Caution
+                } else {
+                    EvidenceClass::Fact
+                },
+                if formatting {
+                    Severity::Info
+                } else {
+                    Severity::Warning
+                },
                 Some(&installation.id),
             ));
         }
+    }
+}
+
+fn version_evidence_code(command: KnownCommand, versions: &[&str]) -> Option<DiagnosticCode> {
+    let first = versions.first()?;
+    if versions.iter().all(|v| v == first) {
+        return None;
+    }
+    // 元の申告値を変更せず、既知の表記差だけで矛盾と確定することを避ける。
+    let key = |version: &str| {
+        let version = if command == KnownCommand::Git {
+            version
+                .split_once(".windows.")
+                .filter(|(_, build)| !build.is_empty() && build.bytes().all(|b| b.is_ascii_digit()))
+                .map_or(version, |(base, _)| base)
+        } else {
+            version
+        };
+        let mut parts: Vec<_> = version.split('.').collect();
+        if parts.len() > 1
+            && parts
+                .iter()
+                .all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()))
+        {
+            while parts.len() > 1 && parts.last() == Some(&"0") {
+                parts.pop();
+            }
+            parts.join(".")
+        } else {
+            version.to_string()
+        }
+    };
+    Some(if versions.iter().all(|v| key(v) == key(first)) {
+        DiagnosticCode::VersionFormatDifference
+    } else {
+        DiagnosticCode::ConflictingVersionEvidence
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn known_format_differences_preserve_uncertainty_without_conflict() {
+        assert_eq!(
+            version_evidence_code(KnownCommand::Java, &["21.0.6", "21.0.6.0"]),
+            Some(DiagnosticCode::VersionFormatDifference)
+        );
+        assert_eq!(
+            version_evidence_code(KnownCommand::Git, &["2.51.0", "2.51.0.windows.1"]),
+            Some(DiagnosticCode::VersionFormatDifference)
+        );
+        assert_eq!(
+            version_evidence_code(KnownCommand::Java, &["21.0.6", "21.0.7"]),
+            Some(DiagnosticCode::ConflictingVersionEvidence)
+        );
+        assert_eq!(
+            version_evidence_code(KnownCommand::Node, &["24.1.0", "24.1.0"]),
+            None
+        );
     }
 }

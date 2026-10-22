@@ -20,6 +20,7 @@ process-wrap.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62.2", features = ["Win32_System_Threading"] }
+winreg = "0.56.0"
 
 [[bin]]
 name = "dei"

@@ -81,6 +81,7 @@ impl EnvironmentScanner for MockScanner {
                     },
                     tool,
                     installations,
+                    registrations: vec![],
                     diagnostics: vec![],
                 }
             })

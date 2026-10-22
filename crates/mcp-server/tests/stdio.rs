@@ -22,6 +22,7 @@ impl WireClient {
         // 検出専用のダミーファイル。既定の受動スキャンでは実行されない。
         fs::write(directory.path().join("node.exe"), b"not an executable").unwrap();
         let mut child = Command::new(env!("CARGO_BIN_EXE_dei-mcp"))
+            .arg("--path-only")
             .args(args)
             .env("PATH", directory.path())
             .env("PATHEXT", ".EXE")

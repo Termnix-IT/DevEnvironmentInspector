@@ -6,7 +6,7 @@ use inspector_mcp_server::{
 };
 use rmcp::{ServiceExt, transport::async_rw::AsyncRwTransport};
 
-const HELP: &str = "Dev Environment Inspector MCP server\n\n  dei-mcp [--paths omit|redact-home|full] [--allow-version-probes]\n\n既定は受動スキャン・パス省略です。標準出力はMCP stdio通信専用です。";
+const HELP: &str = "Dev Environment Inspector MCP server\n\n  dei-mcp [--path-only] [--paths omit|redact-home|full] [--allow-version-probes]\n\n既定は受動スキャン・パス省略です。--path-only は探索をPATHだけに制限します。標準出力はMCP stdio通信専用です。";
 
 fn parse(args: impl Iterator<Item = OsString>) -> Result<Option<ServerPolicy>, &'static str> {
     let mut args = args.peekable();
@@ -21,6 +21,9 @@ fn parse(args: impl Iterator<Item = OsString>) -> Result<Option<ServerPolicy>, &
     let mut paths_seen = false;
     while let Some(arg) = args.next() {
         match arg.to_str() {
+            Some("--path-only") if !policy.path_only => {
+                policy.path_only = true;
+            }
             Some("--allow-version-probes") if !policy.allow_version_probes => {
                 policy.allow_version_probes = true
             }
@@ -54,7 +57,13 @@ async fn run() -> Result<(), &'static str> {
         return Ok(());
     };
     let catalog = Catalog::bundled().map_err(|_| "同梱カタログを読み込めませんでした")?;
-    let service = InspectionService::new(catalog, Arc::new(WindowsScanner), policy);
+    let service = InspectionService::new(
+        catalog,
+        Arc::new(WindowsScanner {
+            path_only: policy.path_only,
+        }),
+        policy,
+    );
     // SDK標準のstdioフレーミングに、用途に合わせた入力1行64KiBの上限を設定する。
     let transport = AsyncRwTransport::new_server(tokio::io::stdin(), tokio::io::stdout())
         .with_max_line_length(64 * 1024);

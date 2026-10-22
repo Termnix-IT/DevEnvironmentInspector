@@ -153,7 +153,7 @@ impl InspectorServer {
             snapshot
                 .tools
                 .iter()
-                .filter(|t| !t.installations.is_empty())
+                .filter(|t| t.has_evidence())
                 .collect::<Vec<_>>(),
         )
         .map_err(|_| ServiceError::Unavailable)?;
@@ -202,7 +202,7 @@ impl InspectorServer {
         let mut value = metadata(&snapshot)?;
         let categories: Vec<_> = [Category::Runtime, Category::AiCli, Category::Development, Category::PackageManager].into_iter().map(|category| {
             let tools: Vec<_> = snapshot.tools.iter().filter(|t| t.tool.category == category).collect();
-            json!({ "category": category, "scanned_tools": tools.len(), "detected_tools": tools.iter().filter(|t| !t.installations.is_empty()).count(), "installations": tools.iter().map(|t| t.installations.len()).sum::<usize>() })
+            json!({ "category": category, "scanned_tools": tools.len(), "detected_tools": tools.iter().filter(|t| t.has_evidence()).count(), "installations": tools.iter().map(|t| t.installations.len()).sum::<usize>(), "registrations": tools.iter().map(|t| t.registrations.len()).sum::<usize>() })
         }).collect();
         let diagnostics = snapshot
             .diagnostics
@@ -217,18 +217,20 @@ impl InspectorServer {
             .collect::<Vec<_>>();
         value["catalog_tool_count"] = json!(self.service.catalog().tools.len());
         value["scanned_tool_count"] = json!(snapshot.tools.len());
-        value["detected_tool_count"] = json!(
-            snapshot
-                .tools
-                .iter()
-                .filter(|t| !t.installations.is_empty())
-                .count()
-        );
+        value["detected_tool_count"] =
+            json!(snapshot.tools.iter().filter(|t| t.has_evidence()).count());
         value["installation_count"] = json!(
             snapshot
                 .tools
                 .iter()
                 .map(|t| t.installations.len())
+                .sum::<usize>()
+        );
+        value["registration_count"] = json!(
+            snapshot
+                .tools
+                .iter()
+                .map(|t| t.registrations.len())
                 .sum::<usize>()
         );
         value["warning_count"] = json!(

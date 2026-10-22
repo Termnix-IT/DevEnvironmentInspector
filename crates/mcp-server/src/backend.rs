@@ -1,6 +1,7 @@
 use inspector_core::{Catalog, ScanSnapshot};
 use inspector_scanner::{
-    NativeVersionRunner, PathEnvironment, PathProvider, RealFileSystem, ScanEngine, ScanOptions,
+    ScanOptions,
+    platform::{path_engine, windows_engine},
 };
 use thiserror::Error;
 
@@ -17,20 +18,20 @@ pub trait EnvironmentScanner: Send + Sync + 'static {
     fn scan(&self, catalog: Catalog, probe_versions: bool) -> Result<ScanSnapshot, ScanFailure>;
 }
 
-pub struct WindowsScanner;
+pub struct WindowsScanner {
+    pub path_only: bool,
+}
 
 impl EnvironmentScanner for WindowsScanner {
     fn scan(&self, catalog: Catalog, probe_versions: bool) -> Result<ScanSnapshot, ScanFailure> {
         if !cfg!(windows) {
             return Err(ScanFailure::UnsupportedPlatform);
         }
-        let path = PathEnvironment::current();
-        let runner = NativeVersionRunner::new(&path);
-        let provider = PathProvider {
-            environment: path,
-            file_system: RealFileSystem,
+        let engine = if self.path_only {
+            path_engine(catalog)
+        } else {
+            windows_engine(catalog)
         };
-        let engine = ScanEngine::new(catalog, vec![Box::new(provider)], Box::new(runner));
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()

@@ -15,6 +15,7 @@ pub const MIN_SCAN_INTERVAL: Duration = Duration::from_secs(2);
 
 #[derive(Debug, Clone)]
 pub struct ServerPolicy {
+    pub path_only: bool,
     pub paths: PathExposure,
     pub home: Option<PathBuf>,
     pub allow_version_probes: bool,
@@ -23,6 +24,7 @@ pub struct ServerPolicy {
 impl Default for ServerPolicy {
     fn default() -> Self {
         Self {
+            path_only: false,
             paths: PathExposure::Omit,
             home: None,
             allow_version_probes: false,

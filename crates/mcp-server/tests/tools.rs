@@ -261,6 +261,7 @@ async fn failed_refresh_keeps_the_previous_timestamped_snapshot() {
 async fn exposure_is_fixed_by_startup_policy_for_every_response() {
     for paths in [PathExposure::Full, PathExposure::RedactHome] {
         let (server, _, _) = common::server(ServerPolicy {
+            path_only: false,
             paths,
             home: Some(PathBuf::from("C:/Fixture User")),
             allow_version_probes: false,
@@ -351,6 +352,91 @@ async fn official_sdk_supports_modern_discovery_without_legacy_initialize() {
     );
     client.cancel().await.unwrap();
     tokio::time::timeout(Duration::from_secs(2), server_task)
+        .await
+        .unwrap()
+        .unwrap();
+}
+
+#[tokio::test]
+async fn sdk_lists_metadata_only_tools_without_claiming_a_command_is_available() {
+    use inspector_core::*;
+    use inspector_mcp_server::backend::{EnvironmentScanner, ScanFailure};
+    struct MetadataScanner;
+    impl EnvironmentScanner for MetadataScanner {
+        fn scan(&self, catalog: Catalog, probes: bool) -> Result<ScanSnapshot, ScanFailure> {
+            let mut data = common::MockScanner::default().scan(catalog, probes)?;
+            let node = data.tools.iter_mut().find(|t| t.tool.id == "node").unwrap();
+            node.installations.clear();
+            node.registrations.push(Registration {
+                id: "node-registration-1".into(),
+                package_id: Some("OpenJS.NodeJS".into()),
+                install_location: Some("C:/Fixture User/開発 tools".into()),
+                sources: vec![SourceEvidence {
+                    provider: ProviderKind::Winget,
+                    reported_version: Some("24.1.0".into()),
+                    install_method: Some(InstallMethod::Winget),
+                }],
+                detected_at: data.started_at,
+            });
+            Ok(data)
+        }
+    }
+    let service = InspectionService::new(
+        Catalog::bundled().unwrap(),
+        Arc::new(MetadataScanner),
+        ServerPolicy::default(),
+    );
+    let (client_io, server_io) = tokio::io::duplex(64 * 1024);
+    let server = tokio::spawn(async move {
+        InspectorServer::new(service)
+            .serve(server_io)
+            .await
+            .unwrap()
+            .waiting()
+            .await
+            .unwrap()
+    });
+    let client = ().serve(client_io).await.unwrap();
+    for (name, args) in [
+        ("list_tools", json!({})),
+        ("get_tool_info", json!({"tool_id":"node"})),
+        ("check_command", json!({"command":"node"})),
+        ("get_environment_summary", json!({})),
+    ] {
+        let result = client
+            .call_tool(
+                rmcp::model::CallToolRequestParams::new(name)
+                    .with_arguments(args.as_object().unwrap().clone()),
+            )
+            .await
+            .unwrap();
+        let value = result.structured_content.unwrap();
+        assert!(!value.to_string().contains("Fixture User"));
+        match name {
+            "list_tools" => {
+                assert_eq!(value["tools"].as_array().unwrap().len(), 1);
+                assert_eq!(
+                    value["tools"][0]["registrations"][0]["install_location"],
+                    Value::Null
+                );
+            }
+            "get_tool_info" => assert_eq!(
+                value["tool"]["registrations"][0]["sources"][0]["reported_version"],
+                "24.1.0"
+            ),
+            "check_command" => {
+                assert_eq!(value["primary_candidate_id"], Value::Null);
+                assert!(value["candidates"].as_array().unwrap().is_empty());
+            }
+            _ => {
+                assert_eq!(value["installation_count"], 0);
+                assert_eq!(value["registration_count"], 1);
+                assert_eq!(value["detected_tool_count"], 1);
+            }
+        }
+    }
+    client.cancel().await.unwrap();
+    tokio::time::timeout(Duration::from_secs(2), server)
         .await
         .unwrap()
         .unwrap();

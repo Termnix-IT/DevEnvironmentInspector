@@ -21,6 +21,7 @@ fn snapshot(path: &Path) -> ScanSnapshot {
         tools: vec![ToolScan {
             tool: Catalog::bundled().unwrap().tools.remove(0),
             status: DetectionStatus::Detected,
+            registrations: vec![],
             installations: vec![Installation {
                 id: "node-1".into(),
                 command: KnownCommand::Node,
@@ -166,4 +167,58 @@ fn rejects_structurally_valid_json_with_inconsistent_results() {
         repository.save(&data, PathExposure::Omit, None),
         Err(StorageError::InvalidData)
     ));
+}
+
+#[test]
+fn migrates_schema_one_in_memory_without_rewriting_the_source() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("v1.json");
+    let data = snapshot(&dir.path().join("node.exe"));
+    let mut value = serde_json::to_value(&data).unwrap();
+    value["schema_version"] = 1.into();
+    value["tools"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("registrations");
+    let bytes = serde_json::to_vec(&value).unwrap();
+    fs::write(&path, &bytes).unwrap();
+    let migrated = JsonRepository { path: &path }.load().unwrap();
+    assert_eq!(migrated, data);
+    assert_eq!(fs::read(&path).unwrap(), bytes);
+}
+
+#[test]
+fn metadata_only_registration_roundtrips_and_obeys_path_projection() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = dir.path().join("Fixture User");
+    let mut data = snapshot(&home.join("node.exe"));
+    data.tools[0].installations.clear();
+    data.tools[0].registrations.push(Registration {
+        id: "node-registration-1".into(),
+        package_id: Some("OpenJS.NodeJS".into()),
+        install_location: Some(home.join("開発 tools")),
+        sources: vec![SourceEvidence {
+            provider: ProviderKind::Winget,
+            reported_version: Some("24.1.0".into()),
+            install_method: Some(InstallMethod::Winget),
+        }],
+        detected_at: data.started_at,
+    });
+    assert!(data.validate());
+    let redacted = data.project(PathExposure::RedactHome, Some(&home));
+    assert_eq!(
+        redacted.tools[0].registrations[0].install_location,
+        Some(PathBuf::from("<HOME>/開発 tools"))
+    );
+    let omitted = data.project(PathExposure::Omit, None);
+    assert!(omitted.validate());
+    assert!(
+        !serde_json::to_string(&omitted)
+            .unwrap()
+            .contains("Fixture User")
+    );
+    let path = dir.path().join("snapshot.json");
+    let repo = JsonRepository { path: &path };
+    repo.save(&data, PathExposure::Omit, None).unwrap();
+    assert_eq!(repo.load().unwrap(), omitted);
 }

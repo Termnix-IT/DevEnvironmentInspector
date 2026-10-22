@@ -1,7 +1,7 @@
 # Dev Environment Inspector
 
 Windowsの開発ツールを検出し、人間とAIが同じ情報を利用するためのローカルアプリケーションです。
-現在は **Phase 1の検出基盤とPhase 2の独立MCPサーバー** を実装しています。Tauri GUIは未実装です。
+現在は **Phase 1の検出基盤、Phase 2の独立MCPサーバー、Phase 3のWindows追加検出** を実装しています。Tauri GUIは未実装です。
 
 ## 利用方法
 
@@ -10,8 +10,11 @@ Windowsの開発ツールを検出し、人間とAIが同じ情報を利用す�
 PowerShellでリポジトリのルートから実行します。
 
 ```powershell
-# 許可されたPATH候補を確認。外部CLIの起動は行いません。
+# PATH・製品登録・既知のnpm global配置等を確認。外部CLIの起動は行いません。
 cargo run -p inspector-scanner --bin dei -- scan
+
+# 探索をPATHだけに制限
+cargo run -p inspector-scanner --bin dei -- scan --path-only
 
 # バージョン取得を明示的に有効化
 cargo run -p inspector-scanner --bin dei -- scan --probe-versions
@@ -38,7 +41,7 @@ cargo build --release --bin dei-mcp
 CLIの標準出力はJSON、エラーは標準エラー出力です。`--output`指定時も同じJSONを標準出力に返します。
 既定では出力と保存から実行ファイルパスを省略します。`redact-home`は自分のホームだけを置換するため、共有前に出力内容を確認してください。実機のスキャン結果はGit管理に追加しないでください。
 
-バージョン取得ではPATHで見つけたローカルプログラムを起動します。固定引数、時間・出力量制限、最小限の環境変数を使用しますが、CLI自体によるファイルアクセスや副作用を完全に隔離する仕組みではありません。信頼できる開発環境で明示的に有効化してください。
+バージョン取得では検出したローカルプログラムを起動します。固定引数、時間・出力量制限、最小限の環境変数を使用しますが、CLI自体によるファイルアクセスや副作用を完全に隔離する仕組みではありません。信頼できる開発環境で明示的に有効化してください。
 
 ## 実装状況と完了条件
 
@@ -46,16 +49,17 @@ CLIの標準出力はJSON、エラーは標準エラー出力です。`--output`
 | --- | --- | --- |
 | 1：基盤 | 共通モデル、18ツールのカタログ、PATH検出、制限付きバージョン取得、JSON保存、Windows上の自動テスト | 実装済み |
 | 2：MCP | 独立したstdioサーバー、5ツール、プロトコルテスト、Codex / Claude Codeからの接続確認と設定例 | 実装済み |
-| 3：Windows拡張 | WinGet、npm global、レジストリ・インストール情報、既知ディレクトリからの検出と統合テスト | 未実装 |
+| 3：Windows拡張 | WinGet明示マーカー、npm global、レジストリ・製品登録、限定した既知ディレクトリの検出と統合テスト | 実装済み（下記の範囲） |
 | 4：仮GUI | Tauri v2 + React / TypeScript + Vite、一覧・詳細・再スキャン・JSON出力、Windows起動確認 | 未実装 |
 
-PATH候補が見つからない場合も、PCに未インストールとは断定しません。カタログ外のツール、PATH未登録の実体、PowerShellの関数・エイリアスはPhase 1の検出範囲外です。
+候補が見つからない場合も、PCに未インストールとは断定しません。WinGetはレジストリに既知のパッケージIDを明示する登録を対象とし、WinGetで導入された全製品の網羅ではありません。npm globalは既知のprefixとPATH配下にある5パッケージを確認し、独自prefixを設定ファイルから探索する処理はありません。製品登録だけの検出と実行ファイルの存在を区別します。詳細・上限は[検出仕様](docs/検出仕様.md)を参照してください。
 同名コマンドの複数候補は情報として記録し、複数バージョンがあるという理由だけで警告しません。
 
 ## 構成と仕様
 
 ```text
 catalog/tools.json         ツール定義（ビルド時に埋め込み）
+catalog/windows.json       Windows製品名・WinGet ID・相対配置の許可リスト
 crates/core/               共通モデル、公開範囲の変換、JSON保存境界
 crates/scanner/            検出プロバイダー、情報統合、バージョン取得、dei CLI
 crates/mcp-server/         独立stdioサーバー、5ツール、スキャン制限とキャッシュ
