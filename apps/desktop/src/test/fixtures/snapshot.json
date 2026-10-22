@@ -1,0 +1,37 @@
+{
+  "revision": 1,
+  "snapshot": {
+    "schema_version": 2,
+    "target_os": "windows",
+    "started_at": "2026-10-22T00:00:00Z",
+    "completed_at": "2026-10-22T00:00:01Z",
+    "providers": ["path", "registry"],
+    "path_exposure": "redact_home",
+    "tools": [
+      {
+        "tool": {"id":"node","name":"Node.js","category":"runtime","commands":["node"]},
+        "status": "detected",
+        "installations": [{
+          "id":"node-1","command":"node","executable_path":"<HOME>/開発 tools/node.exe","on_path":true,"path_order":0,"access":"readable","install_method":null,
+          "version":{"status":"not_requested","version":null,"exit_code":null,"source":null},
+          "sources":[{"provider":"registry","reported_version":"24.1.0","install_method":null}],
+          "detected_at":"2026-10-22T00:00:00Z"
+        }],
+        "registrations":[],
+        "diagnostics":[{"code":"availability_unverified","class":"caution","severity":"info","provider":null,"installation_id":"node-1"}]
+      },
+      {
+        "tool":{"id":"python","name":"Python","category":"runtime","commands":["python","python3"]},
+        "status":"detected","installations":[],
+        "registrations":[{"id":"python-registration-1","package_id":null,"install_location":"<HOME>/Python314",
+          "sources":[{"provider":"registry","reported_version":"3.14.1","install_method":null}],"detected_at":"2026-10-22T00:00:00Z"}],
+        "diagnostics":[{"code":"registered_executable_unresolved","class":"caution","severity":"warning","provider":"registry","installation_id":null}]
+      },
+      {
+        "tool":{"id":"git","name":"Git","category":"development","commands":["git"]},
+        "status":"not_found","installations":[],"registrations":[],"diagnostics":[]
+      }
+    ],
+    "diagnostics":[]
+  }
+}

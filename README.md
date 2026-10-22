@@ -1,7 +1,7 @@
 # Dev Environment Inspector
 
 Windowsの開発ツールを検出し、人間とAIが同じ情報を利用するためのローカルアプリケーションです。
-現在は **Phase 1の検出基盤、Phase 2の独立MCPサーバー、Phase 3のWindows追加検出** を実装しています。Tauri GUIは未実装です。
+現在は **検出基盤、独立MCPサーバー、Windows追加検出、Tauriの仮GUI** を実装しています。最終的なUI/UXデザインは別フェーズです。
 
 ## 利用方法
 
@@ -43,6 +43,28 @@ CLIの標準出力はJSON、エラーは標準エラー出力です。`--output`
 
 バージョン取得では検出したローカルプログラムを起動します。固定引数、時間・出力量制限、最小限の環境変数を使用しますが、CLI自体によるファイルアクセスや副作用を完全に隔離する仕組みではありません。信頼できる開発環境で明示的に有効化してください。
 
+## Windowsデスクトップアプリ
+
+GUIの開発・ビルドには上記のRust環境に加え、Node.js 22.22.2以上の22系、24.15.0以上の24系、または26以上と、Microsoft Edge WebView2 Runtimeが必要です。依存関係はアプリ内に導入し、グローバルインストールは不要です。CLIとMCPだけを使う場合、Node.jsは不要です。
+
+```powershell
+# リポジトリのルートから
+npm ci --prefix apps/desktop
+npm --prefix apps/desktop run desktop:dev
+
+# フロントエンドを埋め込んだリリース実行ファイルを作成
+npm --prefix apps/desktop run desktop:build -- -- --locked
+
+# リリース版を起動（開発サーバーやNode.jsの常駐は不要）
+./target/release/dei-desktop.exe
+```
+
+仮GUIでは起動時にカタログだけを読み込み、「スキャン実行」で検出を始めます。ツール名を選択すると、実行候補・製品登録・バージョン・パス・情報源・診断を表示します。「再スキャン」は現在の結果を置き換え、失敗時には前回結果と取得日時を保持します。
+
+「バージョン取得のためCLIを起動する」は既定で未選択です。「PATHのみ探索」は情報源をPATHに限定します。画面のパス表示は既定でホームを`<HOME>`へ置換し、変更しても再スキャンは行いません。「JSONエクスポート」は別の公開設定を使い、既定で全パスを省略します。保存先はWindowsのダイアログで選択し、キャンセル時には書き込みません。
+
+結果はプロセス内のメモリーに保持し、自動保存や次回起動時の復元は行いません。現段階の配布成果物はWindows用の実行ファイルで、インストーラー・更新機能・最終デザインは含みません。
+
 ## 実装状況と完了条件
 
 | フェーズ | 完了条件 | 状態 |
@@ -50,7 +72,7 @@ CLIの標準出力はJSON、エラーは標準エラー出力です。`--output`
 | 1：基盤 | 共通モデル、18ツールのカタログ、PATH検出、制限付きバージョン取得、JSON保存、Windows上の自動テスト | 実装済み |
 | 2：MCP | 独立したstdioサーバー、5ツール、プロトコルテスト、Codex / Claude Codeからの接続確認と設定例 | 実装済み |
 | 3：Windows拡張 | WinGet明示マーカー、npm global、レジストリ・製品登録、限定した既知ディレクトリの検出と統合テスト | 実装済み（下記の範囲） |
-| 4：仮GUI | Tauri v2 + React / TypeScript + Vite、一覧・詳細・再スキャン・JSON出力、Windows起動確認 | 未実装 |
+| 4：仮GUI | Tauri v2 + React / TypeScript + Vite、一覧・詳細・再スキャン・JSON出力、Windows起動確認 | 仮UI実装済み |
 
 候補が見つからない場合も、PCに未インストールとは断定しません。WinGetはレジストリに既知のパッケージIDを明示する登録を対象とし、WinGetで導入された全製品の網羅ではありません。npm globalは既知のprefixとPATH配下にある5パッケージを確認し、独自prefixを設定ファイルから探索する処理はありません。製品登録だけの検出と実行ファイルの存在を区別します。詳細・上限は[検出仕様](docs/検出仕様.md)を参照してください。
 同名コマンドの複数候補は情報として記録し、複数バージョンがあるという理由だけで警告しません。
@@ -60,6 +82,7 @@ CLIの標準出力はJSON、エラーは標準エラー出力です。`--output`
 ```text
 catalog/tools.json         ツール定義（ビルド時に埋め込み）
 catalog/windows.json       Windows製品名・WinGet ID・相対配置の許可リスト
+apps/desktop/              Reactの仮GUI、TauriコマンドとGUI専用の状態管理
 crates/core/               共通モデル、公開範囲の変換、JSON保存境界
 crates/scanner/            検出プロバイダー、情報統合、バージョン取得、dei CLI
 crates/mcp-server/         独立stdioサーバー、5ツール、スキャン制限とキャッシュ
@@ -74,10 +97,17 @@ docs/                     設計と検出仕様
 ## 検証
 
 ```powershell
+# 全workspaceの検証前にGUIアセットを生成
+npm ci --prefix apps/desktop
+npm --prefix apps/desktop run build
+npm --prefix apps/desktop test
+
 cargo fmt --all --check
 cargo test --workspace --all-features
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 ```
+
+GUIに依存せず検出エンジンとMCPだけをテストする場合は、`cargo test --all-features`を使えます。workspaceの既定メンバーは従来の3クレートで、Tauriを含む全体検証は`--workspace`を明示します。
 
 `--all-features`は`test-fixtures`を有効にし、テスト用の小さな実行ファイルでWindowsのプロセス制御を検証します。既存ツールのインストール・変更は行いません。このフィクスチャは通常の`cargo build --release --bin dei`には含まれません。
 
