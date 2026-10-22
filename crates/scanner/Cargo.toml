@@ -15,8 +15,10 @@ serde_json.workspace = true
 thiserror.workspace = true
 time.workspace = true
 tempfile.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["sync"] }
 process-wrap.workspace = true
+cap-std.workspace = true
+node-semver.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62.2", features = ["Win32_System_Threading"] }

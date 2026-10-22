@@ -80,19 +80,37 @@ impl SnapshotRepository for JsonRepository<'_> {
         if bytes.len() as u64 > MAX_JSON_BYTES {
             return Err(StorageError::TooLarge);
         }
-        let parent = self
-            .path
-            .parent()
-            .filter(|p| !p.as_os_str().is_empty())
-            .unwrap_or(Path::new("."));
-        // 同じディレクトリで作成・同期してから置換。先に既存ファイルを削除しない。
-        let mut temporary = NamedTempFile::new_in(parent)?;
-        temporary.write_all(&bytes)?;
-        temporary.write_all(b"\n")?;
-        temporary.as_file().sync_all()?;
-        temporary
-            .persist(self.path)
-            .map_err(|e| StorageError::Io(e.error))?;
-        Ok(())
+        write_atomic(self.path, &bytes)
     }
+}
+
+pub fn save_project_view(
+    path: &Path,
+    view: &crate::projects::ProjectView,
+    exposure: PathExposure,
+    home: Option<&Path>,
+) -> Result<(), StorageError> {
+    if !view.snapshot.as_ref().is_some_and(|s| s.validate()) {
+        return Err(StorageError::InvalidData);
+    }
+    let bytes = serde_json::to_vec_pretty(&view.project(exposure, home))?;
+    if bytes.len() as u64 > MAX_JSON_BYTES {
+        return Err(StorageError::TooLarge);
+    }
+    write_atomic(path, &bytes)
+}
+fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), StorageError> {
+    let parent = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    // 同じディレクトリで作成・同期してから置換。先に既存ファイルを削除しない。
+    let mut temporary = NamedTempFile::new_in(parent)?;
+    temporary.write_all(bytes)?;
+    temporary.write_all(b"\n")?;
+    temporary.as_file().sync_all()?;
+    temporary
+        .persist(path)
+        .map_err(|e| StorageError::Io(e.error))?;
+    Ok(())
 }

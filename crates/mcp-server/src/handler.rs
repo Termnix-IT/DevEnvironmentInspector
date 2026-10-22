@@ -13,6 +13,7 @@ use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::{Map, Value, json};
 
 use crate::service::{InspectionService, ServiceError};
+use inspector_core::projects::{ProjectError, ProjectView};
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -41,6 +42,31 @@ struct ScanArgs {
     #[serde(default)]
     probe_versions: bool,
 }
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct ProjectArgs {
+    /// ID returned by list_projects. Filesystem paths are not accepted.
+    project_id: String,
+    /// Refresh only this registered project. Does not execute any process.
+    #[serde(default)]
+    refresh: bool,
+}
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct ProjectPackagesArgs {
+    project_id: String,
+    /// Environment ID returned by get_project_environment.
+    environment_id: String,
+    #[serde(default)]
+    offset: usize,
+    #[serde(default = "default_page_size")]
+    limit: usize,
+    /// Supply the previous scan_revision when paging to reject changed snapshots.
+    scan_revision: Option<u64>,
+}
+fn default_page_size() -> usize {
+    100
+}
 
 #[derive(Clone)]
 pub struct InspectorServer {
@@ -53,6 +79,16 @@ impl InspectorServer {
     }
 
     pub fn tools(&self) -> Vec<Tool> {
+        let mut package_schema = schema::<ProjectPackagesArgs>();
+        package_schema["properties"]["limit"]["minimum"] = json!(1);
+        package_schema["properties"]["limit"]["maximum"] = json!(200);
+        package_schema["properties"]["offset"]["maximum"] = json!(512);
+        package_schema["properties"]["environment_id"]["enum"] = json!([
+            "python-dot-venv",
+            "python-venv",
+            "python-external",
+            "node-npm"
+        ]);
         let mut command_schema = schema::<CommandArgs>();
         command_schema["properties"]["command"]["enum"] = json!(
             self.service
@@ -98,6 +134,27 @@ impl InspectorServer {
                 true,
                 self.service.policy().allow_version_probes,
             ),
+            definition(
+                "list_projects",
+                "List explicitly registered projects allowed for MCP. Does not scan directories. Paths follow server startup policy.",
+                schema::<EmptyArgs>(),
+                false,
+                false,
+            ),
+            definition(
+                "get_project_environment",
+                "Read Python venv and npm metadata for one allowed registered project. The first read scans only known metadata; refresh=true performs a bounded rescan. No scripts, interpreters, activation, or network requests are run. Returns environment IDs and package counts.",
+                schema::<ProjectArgs>(),
+                true,
+                false,
+            ),
+            definition(
+                "list_project_packages",
+                "Read a page of observed packages for an allowed registered project environment. Declared, locked, and installed metadata are separate. Specify scan_revision for consistent pagination. Never executes project code.",
+                package_schema,
+                false,
+                false,
+            ),
         ]
     }
 
@@ -108,6 +165,12 @@ impl InspectorServer {
         arguments: Option<Map<String, Value>>,
     ) -> Result<CallToolResult, ErrorData> {
         let args = Value::Object(arguments.unwrap_or_default());
+        if matches!(
+            name,
+            "list_projects" | "get_project_environment" | "list_project_packages"
+        ) {
+            return self.invoke_projects(name, args).await;
+        }
         let result = match name {
             "list_tools" => {
                 decode::<EmptyArgs>(args)?;
@@ -143,6 +206,73 @@ impl InspectorServer {
             Err(error) => CallToolResult::structured_error(
                 json!({ "error": { "code": error.code(), "message": error.to_string() } }),
             ),
+        })
+    }
+
+    async fn invoke_projects(&self, name: &str, args: Value) -> Result<CallToolResult, ErrorData> {
+        let result = match name {
+            "list_projects" => {
+                decode::<EmptyArgs>(args)?;
+                self.service
+                    .projects()
+                    .and_then(|service| service.list(self.service.policy().paths, true))
+                    .and_then(|projects| {
+                        serde_json::to_value(projects)
+                            .map(|projects| json!({"projects":projects}))
+                            .map_err(|_| ProjectError::ProjectScanFailed)
+                    })
+            }
+            "get_project_environment" => {
+                let args: ProjectArgs = decode(args)?;
+                match self.service.projects() {
+                    Ok(service) => service
+                        .inspect(
+                            &args.project_id,
+                            self.service.policy().paths,
+                            true,
+                            args.refresh,
+                        )
+                        .await
+                        .and_then(project_metadata),
+                    Err(error) => Err(error),
+                }
+            }
+            "list_project_packages" => {
+                let args: ProjectPackagesArgs = decode(args)?;
+                if args.limit == 0
+                    || args.limit > 200
+                    || args.offset > 512
+                    || ![
+                        "python-dot-venv",
+                        "python-venv",
+                        "python-external",
+                        "node-npm",
+                    ]
+                    .contains(&args.environment_id.as_str())
+                {
+                    return Err(ErrorData::invalid_params(
+                        "Invalid project package page",
+                        None,
+                    ));
+                }
+                match self.service.projects() {
+                    Ok(service) => service
+                        .inspect(&args.project_id, self.service.policy().paths, true, false)
+                        .await
+                        .and_then(|view| project_package_page(view, args)),
+                    Err(error) => Err(error),
+                }
+            }
+            _ => unreachable!(),
+        };
+        Ok(match result {
+            Ok(value) => CallToolResult::structured(value),
+            Err(error) => {
+                let mut value = serde_json::to_value(error)
+                    .unwrap_or_else(|_| json!({"code":"project_scan_failed"}));
+                value["message"] = json!(error.to_string());
+                CallToolResult::structured_error(json!({"error":value}))
+            }
         })
     }
 
@@ -264,6 +394,59 @@ impl InspectorServer {
     }
 }
 
+fn project_metadata(view: ProjectView) -> Result<Value, ProjectError> {
+    let mut value = serde_json::to_value(view).map_err(|_| ProjectError::ProjectScanFailed)?;
+    if let Some(environments) = value["snapshot"]["environments"].as_array_mut() {
+        for environment in environments {
+            let count = environment["packages"].as_array().map_or(0, Vec::len);
+            if let Some(object) = environment.as_object_mut() {
+                object.remove("packages");
+                object.insert("package_count".into(), json!(count));
+            }
+        }
+    }
+    Ok(value)
+}
+
+fn project_package_page(
+    view: ProjectView,
+    args: ProjectPackagesArgs,
+) -> Result<Value, ProjectError> {
+    if args
+        .scan_revision
+        .is_some_and(|revision| Some(revision) != view.scan_revision)
+    {
+        return Err(ProjectError::ProjectSnapshotChanged);
+    }
+    let snapshot = view.snapshot.ok_or(ProjectError::ProjectScanFailed)?;
+    let environment = snapshot
+        .environments
+        .iter()
+        .find(|environment| environment.id == args.environment_id)
+        .ok_or(ProjectError::ProjectNotFound)?;
+    if args.offset > environment.packages.len() {
+        return Err(ProjectError::InvalidProjectInput);
+    }
+    let end = (args.offset + args.limit).min(environment.packages.len());
+    let timestamp = |value: time::OffsetDateTime| {
+        value
+            .format(&time::format_description::well_known::Rfc3339)
+            .map_err(|_| ProjectError::ProjectScanFailed)
+    };
+    Ok(json!({
+        "project_id": view.project.id,
+        "environment_id": environment.id,
+        "scan_revision": view.scan_revision,
+        "started_at": timestamp(snapshot.started_at)?,
+        "completed_at": timestamp(snapshot.completed_at)?,
+        "path_exposure": snapshot.path_exposure,
+        "offset": args.offset,
+        "total": environment.packages.len(),
+        "next_offset": (end < environment.packages.len()).then_some(end),
+        "packages": &environment.packages[args.offset..end],
+    }))
+}
+
 fn decode<T: DeserializeOwned>(value: Value) -> Result<T, ErrorData> {
     // serdeの詳細エラーには入力値が含まれ得るため、外部へ返さない。
     serde_json::from_value(value).map_err(|_| {
@@ -331,7 +514,7 @@ impl ServerHandler for InspectorServer {
     fn get_info(&self) -> ServerConfig {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new("dev-environment-inspector", env!("CARGO_PKG_VERSION")))
-            .with_instructions("Inspect local development tools through the bundled catalog only. Results include scan scope and timestamps; not_found does not mean uninstalled. Paths are controlled at server startup. check_command never executes commands. scan_environment is bounded and may return a retryable busy or cooldown error.")
+            .with_instructions("Inspect local development tools through the bundled catalog and explicitly registered MCP-allowed projects. Project tools accept IDs, never arbitrary paths or commands, and only read bounded metadata without running project code. Results include scope and timestamps; not_found does not mean uninstalled. Paths are controlled at server startup. check_command never executes commands. Refresh operations may return retryable busy or cooldown errors.")
     }
 
     async fn list_tools(

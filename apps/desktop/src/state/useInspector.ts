@@ -2,6 +2,18 @@ import { useEffect, useRef, useState } from 'react';
 import type { Catalog, InspectorApi, PathExposure, SnapshotView } from '../api/contracts';
 
 const errors: Record<string, string> = {
+  project_storage_unavailable: 'プロジェクトの登録情報を読み書きできませんでした。',
+  project_storage_invalid: '登録情報が破損しているか未対応です。既存ファイルは保持しています。',
+  project_storage_busy: '別の登録・フォルダー選択操作を処理中です。再度お試しください。',
+  invalid_project_input: 'プロジェクトの指定が不正です。フォルダーを選び直してください。',
+  invalid_project_folder: 'ローカルの通常のフォルダーを選択してください。リンク先は登録できません。',
+  project_already_registered: 'このフォルダーは既に登録されています。',
+  project_limit_reached: '登録できるプロジェクト数の上限に到達しました。',
+  project_not_found: '登録したプロジェクトが見つかりません。登録情報を再読み込みしてください。',
+  project_scan_in_progress: '別のプロジェクトスキャンを実行中です。',
+  project_scan_rate_limited: '前回のプロジェクトスキャン完了から2秒以上待って再試行してください。',
+  project_scan_failed: 'プロジェクトのスキャンを完了できませんでした。前回結果を保持しています。',
+  project_snapshot_changed: '登録情報またはスキャン結果が変更されました。再読み込みしてください。',
   desktop_unavailable: 'デスクトップアプリから起動してください。ブラウザー単独では検出できません。',
   scan_in_progress: '別のスキャンを実行中です。完了後に再試行してください。',
   scan_rate_limited: '前回のスキャン完了から2秒以上待って再試行してください。',

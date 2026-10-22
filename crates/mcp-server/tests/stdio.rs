@@ -128,7 +128,7 @@ async fn real_stdio_server_lists_catalog_tools_and_returns_private_timestamped_d
             .as_array()
             .unwrap()
             .len(),
-        5
+        8
     );
     let list = client.call(3, "list_tools", json!({})).await;
     let data = &list["result"]["structuredContent"];
@@ -276,4 +276,70 @@ async fn help_and_invalid_startup_arguments_never_pollute_protocol_stdout() {
         assert!(!String::from_utf8_lossy(&output.stderr).contains("PRIVATE_TEST_VALUE"));
         assert_eq!(output.status.success(), args[0] == "--help");
     }
+}
+
+#[tokio::test]
+async fn stdio_reads_gui_registration_file_and_honors_revocation() {
+    use inspector_core::{
+        project_store::{JsonProjectRepository, ProjectRepository},
+        projects::NewProject,
+    };
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path().join("project");
+    fs::create_dir(&root).unwrap();
+    fs::write(
+        root.join("package.json"),
+        br#"{"dependencies":{"example":"^1.0.0"}}"#,
+    )
+    .unwrap();
+    let repository = JsonProjectRepository {
+        path: directory.path().join("projects.json"),
+    };
+    let registration = repository
+        .register(NewProject {
+            name: "sample".into(),
+            root,
+            extra_venv: None,
+            mcp_allowed: true,
+        })
+        .unwrap();
+    let mut client = WireClient::new(&["--projects-file", repository.path.to_str().unwrap()]);
+    client.initialize().await;
+    let list = client.call(2, "list_projects", json!({})).await;
+    assert_eq!(
+        list["result"]["structuredContent"]["projects"][0]["id"],
+        registration.id
+    );
+    assert!(list["result"]["structuredContent"]["projects"][0]["root"].is_null());
+    let metadata = client
+        .call(
+            3,
+            "get_project_environment",
+            json!({"project_id":registration.id}),
+        )
+        .await;
+    assert_eq!(
+        metadata["result"]["structuredContent"]["snapshot"]["environments"][0]["package_count"],
+        1
+    );
+    let packages=client.call(4,"list_project_packages",json!({"project_id":registration.id,"environment_id":"node-npm","scan_revision":metadata["result"]["structuredContent"]["scan_revision"]})).await;
+    assert_eq!(
+        packages["result"]["structuredContent"]["packages"][0]["name"],
+        "example"
+    );
+    repository
+        .update(&registration.id, "sample", false)
+        .unwrap();
+    let denied = client
+        .call(
+            5,
+            "get_project_environment",
+            json!({"project_id":registration.id}),
+        )
+        .await;
+    assert_eq!(
+        denied["result"]["structuredContent"]["error"]["code"],
+        "project_not_found"
+    );
+    client.close().await;
 }

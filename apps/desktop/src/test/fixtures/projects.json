@@ -1,0 +1,16 @@
+{
+  "project": { "id": "project-1", "name": "sample-api", "root": "<HOME>/開発 tools/sample-api", "extra_venv": null, "mcp_allowed": false, "revision": 1, "created_at": "2026-10-22T00:00:00Z" },
+  "scan_revision": 3,
+  "snapshot": {
+    "schema_version": 1, "started_at": "2026-10-22T01:00:00Z", "completed_at": "2026-10-22T01:00:01.250Z", "path_exposure": "redact_home", "findings": [],
+    "environments": [
+      { "id": "python-dot-venv", "label": ".venv", "kind": "python_venv", "status": "detected", "path": "<HOME>/開発 tools/sample-api/.venv", "reported_runtime_version": "3.13.7", "declared_runtime_requirement": null, "interpreter_present": true, "system_site_packages": false, "findings": [], "packages": [
+        { "name": "fastapi", "declarations": [], "locked_version": null, "installed_version": "0.115.12", "presence": "metadata_present", "lock_matches": null, "declaration_satisfied": null, "sources": ["python_distribution"] }
+      ] },
+      { "id": "node-npm", "label": "Node.js / npm", "kind": "node_npm", "status": "incomplete", "path": "<HOME>/開発 tools/sample-api/node_modules", "reported_runtime_version": null, "declared_runtime_requirement": ">=22", "interpreter_present": null, "system_site_packages": null, "findings": ["dependency_mismatch"], "packages": [
+        { "name": "vite", "declarations": [{"kind":"development","requirement":"^6.3.0"}], "locked_version": "6.3.2", "installed_version": "6.2.6", "presence": "metadata_present", "lock_matches": false, "declaration_satisfied": false, "sources": ["package_manifest","npm_lock","npm_installed"] },
+        { "name": "missing-package", "declarations": [{"kind":"optional","requirement":"^1.0.0"}], "locked_version": "1.2.0", "installed_version": null, "presence": "not_found", "lock_matches": null, "declaration_satisfied": null, "sources": ["package_manifest","npm_lock"] }
+      ] }
+    ]
+  }
+}

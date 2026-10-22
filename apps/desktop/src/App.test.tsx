@@ -204,11 +204,14 @@ describe('環境インスペクターの画面と通信境界', () => {
     expect(within(within(table).getAllByRole('row')[1]!).getByText('確認済み・エラー')).toBeTruthy();
   });
 
-  it('MCP画面は5ツールを案内し、未確認の接続状態を接続済みにしない', async () => {
+  it('MCP画面は8ツールを案内し、未確認の接続状態を接続済みにしない', async () => {
     const client = await scanned();
     navigate('MCP');
     expect(screen.getByText('get_tool_info')).toBeTruthy();
     expect(screen.getByText('scan_environment')).toBeTruthy();
+    expect(screen.getByText('list_projects')).toBeTruthy();
+    expect(screen.getByText('get_project_environment')).toBeTruthy();
+    expect(screen.getByText('list_project_packages')).toBeTruthy();
     expect(screen.getByText(/接続状態は監視していません/)).toBeTruthy();
     expect(screen.queryByText(/MCP connected|MCP接続済み/)).toBeNull();
     expect(client.scan).toHaveBeenCalledTimes(1);

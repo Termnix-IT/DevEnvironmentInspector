@@ -310,7 +310,7 @@ impl ScanSnapshot {
     }
 }
 
-fn redact_home(path: &Path, home: Option<&Path>) -> Option<PathBuf> {
+pub(crate) fn redact_home(path: &Path, home: Option<&Path>) -> Option<PathBuf> {
     // home未指定なら安全側に倒して省略する。文字列の部分一致は使用しない。
     let home = home?;
     let parts: Vec<_> = path.components().collect();
