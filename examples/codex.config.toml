@@ -1,0 +1,6 @@
+# commandは手元のビルド済み実行ファイルの絶対パスに置き換えてください。
+[mcp_servers.dev_environment_inspector]
+command = "C:/path/to/DevEnvironmentInspector/target/release/dei-mcp.exe"
+args = []
+startup_timeout_sec = 10
+tool_timeout_sec = 45
