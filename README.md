@@ -1,7 +1,7 @@
 # Dev Environment Inspector
 
 Windowsの開発ツールを検出し、人間とAIが同じ情報を利用するためのローカルアプリケーションです。
-現在は **Phase 1の検出基盤と検証用CLI** を実装しています。Tauri GUIとMCPサーバーは未実装です。
+現在は **Phase 1の検出基盤とPhase 2の独立MCPサーバー** を実装しています。Tauri GUIは未実装です。
 
 ## 利用方法
 
@@ -30,6 +30,9 @@ cargo run -p inspector-scanner --bin dei -- catalog
 
 # 配布候補となるCLI実行ファイルを生成
 cargo build --release --bin dei
+
+# GUIなしで使えるMCPサーバーを生成（設定方法は下記MCP連携を参照）
+cargo build --release --bin dei-mcp
 ```
 
 CLIの標準出力はJSON、エラーは標準エラー出力です。`--output`指定時も同じJSONを標準出力に返します。
@@ -42,7 +45,7 @@ CLIの標準出力はJSON、エラーは標準エラー出力です。`--output`
 | フェーズ | 完了条件 | 状態 |
 | --- | --- | --- |
 | 1：基盤 | 共通モデル、18ツールのカタログ、PATH検出、制限付きバージョン取得、JSON保存、Windows上の自動テスト | 実装済み |
-| 2：MCP | 独立したstdioサーバー、5ツール、プロトコルテスト、Codex / Claude Codeからの接続確認と設定例 | 未実装 |
+| 2：MCP | 独立したstdioサーバー、5ツール、プロトコルテスト、Codex / Claude Codeからの接続確認と設定例 | 実装済み |
 | 3：Windows拡張 | WinGet、npm global、レジストリ・インストール情報、既知ディレクトリからの検出と統合テスト | 未実装 |
 | 4：仮GUI | Tauri v2 + React / TypeScript + Vite、一覧・詳細・再スキャン・JSON出力、Windows起動確認 | 未実装 |
 
@@ -55,11 +58,14 @@ PATH候補が見つからない場合も、PCに未インストールとは断�
 catalog/tools.json         ツール定義（ビルド時に埋め込み）
 crates/core/               共通モデル、公開範囲の変換、JSON保存境界
 crates/scanner/            検出プロバイダー、情報統合、バージョン取得、dei CLI
+crates/mcp-server/         独立stdioサーバー、5ツール、スキャン制限とキャッシュ
+examples/                 Codex・Claude Code用MCP設定例
 docs/                     設計と検出仕様
 ```
 
 - [アーキテクチャ](docs/アーキテクチャ.md)：責務、データモデル、依存関係と設計判断。
 - [検出仕様](docs/検出仕様.md)：探索範囲、実行制限、診断、保存形式、未対応事項。
+- [MCP連携](docs/MCP連携.md)：公開ツール、処理制限、Codex・Claude Codeの設定方法。
 
 ## 検証
 

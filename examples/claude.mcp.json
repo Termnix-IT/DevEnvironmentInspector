@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "dev-environment-inspector": {
+      "type": "stdio",
+      "command": "C:/path/to/DevEnvironmentInspector/target/release/dei-mcp.exe",
+      "args": []
+    }
+  }
+}
