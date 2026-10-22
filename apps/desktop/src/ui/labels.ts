@@ -1,4 +1,5 @@
 import type { Category, DetectionStatus, DiagnosticCode, InstallMethod, ProviderKind, ToolScan, VersionStatus } from '../api/contracts';
+import { primaryPathCandidate } from './toolPresentation';
 
 export const categories: Record<Category, string> = { runtime: 'ランタイム', ai_cli: 'AI CLI', development: '開発・インフラ', package_manager: 'パッケージ管理' };
 export const providers: Record<ProviderKind, string> = { path: 'PATH', installed_applications: '製品登録', winget: 'WinGet', npm_global: 'npm global', registry: 'レジストリ', known_directory: '既知ディレクトリ' };
@@ -24,11 +25,15 @@ export const diagnosticLabels: Record<DiagnosticCode, string> = {
 };
 export function versionSummary(scan?: ToolScan): string {
   if (!scan) return '未スキャン';
-  const measured = [...new Set(scan.installations.flatMap((i) => i.version.version ? [i.version.version] : []))];
-  const reported = [...new Set([...scan.installations, ...scan.registrations].flatMap((i) => i.sources.flatMap((s) => s.reported_version ? [s.reported_version] : [])))];
-  return [measured.length ? `実測 ${measured.join(', ')}` : '', reported.length ? `申告 ${reported.join(', ')}` : ''].filter(Boolean).join(' / ') || '未取得';
+  const primary = primaryPathCandidate(scan);
+  return primary?.version.status === 'success' && primary.version.source && primary.version.version ? primary.version.version : '未確認';
 }
 export function dateTime(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? '日時不明' : date.toLocaleString('ja-JP', { hour12: false });
+}
+export function scanDuration(startedAt: string, completedAt: string): string {
+  const milliseconds = Date.parse(completedAt) - Date.parse(startedAt);
+  if (!Number.isFinite(milliseconds) || milliseconds < 0) return '不明';
+  return `${new Intl.NumberFormat('ja-JP', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(milliseconds / 1000)}秒`;
 }

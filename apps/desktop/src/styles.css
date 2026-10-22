@@ -75,7 +75,7 @@ code { overflow-wrap: anywhere; }
 .category-filter { height: 28px; min-width: 88px; max-width: 165px; padding: 0 8px; font-size: 12px; }
 .category-filter option, select option { background: #19222d; }
 .tool-table { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; text-align: left; }
-.tool-column { width: 43%; } .version-column { width: 24%; } .status-column { width: 11%; } .type-column { width: 17%; } .more-column { width: 5%; }
+.tool-column { width: 37%; } .version-column { width: 20%; } .status-column { width: 22%; } .type-column { width: 16%; } .more-column { width: 5%; }
 .tool-table thead th { position: sticky; top: 0; z-index: 2; height: 28px; background: #121a23; color: #a7b8cb; font-size: 11px; font-weight: 400; border-bottom: 1px solid var(--line); padding: 0 8px; }
 .tool-table thead th:first-child { padding-left: 50px; }
 .tool-row { scroll-margin-top: 28px; }
@@ -92,8 +92,13 @@ code { overflow-wrap: anywhere; }
 .version-cell > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .status-dot, .inline-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex: none; }
 .status-dot { margin-left: 4px; }
+.tool-status { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 11px; color: #c0cfdd; }
+.tool-notes { border: 0; padding: 1px 0; margin-left: 8px; background: none; color: #a8bed2; font-size: 11px; text-decoration: underline dotted; text-underline-offset: 3px; }
+.tool-notes:hover { color: var(--blue); }
+.column-context { color: #8eabc1; font-size: 11px; }
 .inline-dot { margin-right: 8px; }
 .positive { background: var(--green); } .caution { background: var(--amber); } .neutral { background: #758698; }
+.negative { background: #ef9c98; }
 .type-badge { display: inline-block; max-width: 100%; vertical-align: middle; white-space: nowrap; font-size: 11px; line-height: 1.5; padding: 1px 5px; color: #c7d6e4; background: #263541; border-radius: 3px; overflow: hidden; text-overflow: ellipsis; }
 .row-more { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; border: 0; border-radius: 3px; background: none; color: #a2b7cb; }
 .row-more .icon { transform: rotate(90deg); width: 14px; height: 14px; }
@@ -171,10 +176,17 @@ dd code { color: #d2dfec; }
 .diagnostic-tool:hover { color: var(--blue); text-decoration: underline; }
 .diagnostic-source { color: #9db0c4; font-size: 11px; }
 .diagnostic-source code { font-size: 11px; }
+.diagnostic-area { color: #91a9bd; font-size: 11px; margin-right: 8px; white-space: nowrap; }
+.scan-metadata { display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 11px; }
+.scan-metadata > div { display: flex; flex-wrap: wrap; gap: 5px 8px; }
+.scan-metadata time { font-family: inherit; font-variant-numeric: tabular-nums; }
+.diagnostic-context { margin: 5px 0 10px; }
 .diagnostics { list-style: none; padding: 0; margin: 8px 0; color: #b2c5d8; font-size: 12px; }
 .diagnostics li { padding: 4px 0; overflow-wrap: anywhere; }
 .diagnostics strong { font-size: 11px; font-weight: 400; color: #b9c9da; background: #273542; border-radius: 3px; padding: 1px 4px; }
-.server-info { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 20px; padding-bottom: 16px; }
+.server-info { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 20px; padding-bottom: 6px; }
+.connection-state { color: #c0cfdd; font-size: 11px; }
+.mcp-connection-note { margin-bottom: 12px; }
 .mcp-layout { display: grid; grid-template-columns: 1.15fr 1fr; gap: 20px; align-items: start; }
 .mcp-layout > section { min-width: 0; }
 .mcp-tools th:first-child { width: 60%; }
@@ -218,8 +230,10 @@ dd code { color: #d2dfec; }
   .tool-row th { padding-left: 6px; }
   .tool-row td { padding-inline: 5px; }
   .tool-toggle { gap: 8px; }
-  .tool-column { width: 39%; } .version-column { width: 25%; } .status-column { width: 10%; } .type-column { width: 20%; } .more-column { width: 6%; }
+  .tool-column { width: 32%; } .version-column { width: 20%; } .status-column { width: 24%; } .type-column { width: 18%; } .more-column { width: 6%; }
   .version-cell { font-size: 11px; }
+  .column-context { display: none; }
+  .tool-notes { margin-left: 5px; }
   .tool-details { padding-left: 42px; }
   .inventory-note { flex-wrap: wrap; gap: 4px; padding-inline: 6px; }
   .scan-intro { flex-wrap: wrap; gap: 0 12px; }
