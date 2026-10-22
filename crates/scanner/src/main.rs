@@ -9,15 +9,17 @@ use inspector_core::{
     storage::{JsonRepository, SnapshotRepository},
 };
 use inspector_scanner::{
-    NativeVersionRunner, PathEnvironment, PathProvider, RealFileSystem, ScanEngine, ScanOptions,
+    ScanOptions,
+    platform::{path_engine, windows_engine},
 };
 
-const USAGE: &str = "Dev Environment Inspector (Phase 1)\n\n  dei scan [--probe-versions] [--paths omit|redact-home|full] [--output <file.json>]\n  dei catalog\n\n既定では外部CLIを実行せず、パスを省略したJSONを標準出力に返します。\n--probe-versions は許可リストのバージョン取得を有効にします。";
+const USAGE: &str = "Dev Environment Inspector (Phase 3)\n\n  dei scan [--path-only] [--probe-versions] [--paths omit|redact-home|full] [--output <file.json>]\n  dei catalog\n\n既定では外部CLIを実行せず、パスを省略したJSONを標準出力に返します。\n--path-only は探索をPATHだけに制限します。\n--probe-versions は許可リストのバージョン取得を有効にします。";
 
 struct Arguments {
     options: ScanOptions,
     exposure: PathExposure,
     output: Option<PathBuf>,
+    path_only: bool,
 }
 
 fn parse(mut args: impl Iterator<Item = OsString>) -> Result<Arguments, &'static str> {
@@ -25,11 +27,15 @@ fn parse(mut args: impl Iterator<Item = OsString>) -> Result<Arguments, &'static
         options: ScanOptions::default(),
         exposure: PathExposure::Omit,
         output: None,
+        path_only: false,
     };
     let mut probe_seen = false;
     let mut paths_seen = false;
     while let Some(arg) = args.next() {
         match arg.to_str() {
+            Some("--path-only") if !result.path_only => {
+                result.path_only = true;
+            }
             Some("--probe-versions") if !probe_seen => {
                 result.options.probe_versions = true;
                 probe_seen = true;
@@ -87,16 +93,14 @@ async fn run() -> Result<(), &'static str> {
         return Err("未対応の操作です。dei --helpを参照してください");
     }
     if !cfg!(windows) {
-        return Err("Phase 1の実機スキャンはWindows専用です");
+        return Err("実機スキャンはWindows専用です");
     }
     let arguments = parse(args)?;
-    let path = PathEnvironment::current();
-    let runner = NativeVersionRunner::new(&path);
-    let provider = PathProvider {
-        environment: path,
-        file_system: RealFileSystem,
+    let engine = if arguments.path_only {
+        path_engine(catalog)
+    } else {
+        windows_engine(catalog)
     };
-    let engine = ScanEngine::new(catalog, vec![Box::new(provider)], Box::new(runner));
     let snapshot = engine
         .scan(&arguments.options)
         .await

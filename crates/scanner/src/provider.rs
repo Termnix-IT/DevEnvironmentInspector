@@ -16,11 +16,22 @@ pub struct Candidate {
 #[derive(Debug, Clone, Default)]
 pub struct Discovery {
     pub candidates: Vec<Candidate>,
+    pub registrations: Vec<RegistrationObservation>,
     pub diagnostics: Vec<Diagnostic>,
     /// 情報を確認できなかった場合、未検出を「未インストール」と断定しない。
     pub incomplete: bool,
     /// 特定ツールだけ確認できなかった場合に使用する。
     pub incomplete_tools: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct RegistrationObservation {
+    pub tool_id: String,
+    /// プロバイダー間の統合専用。レジストリキー等を公開データへ保存しない。
+    pub identity: String,
+    pub package_id: Option<String>,
+    pub install_location: Option<PathBuf>,
+    pub evidence: SourceEvidence,
 }
 
 #[derive(Debug)]

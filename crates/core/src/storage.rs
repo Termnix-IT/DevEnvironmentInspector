@@ -49,9 +49,13 @@ impl SnapshotRepository for JsonRepository<'_> {
         if bytes.len() as u64 > MAX_JSON_BYTES {
             return Err(StorageError::TooLarge);
         }
-        let value: serde_json::Value = serde_json::from_slice(&bytes)?;
-        if value.get("schema_version").and_then(|v| v.as_u64()) != Some(u64::from(SCHEMA_VERSION)) {
-            return Err(StorageError::UnsupportedSchema);
+        let mut value: serde_json::Value = serde_json::from_slice(&bytes)?;
+        match value.get("schema_version").and_then(|v| v.as_u64()) {
+            Some(1) => {
+                value["schema_version"] = SCHEMA_VERSION.into();
+            }
+            Some(version) if version == u64::from(SCHEMA_VERSION) => {}
+            _ => return Err(StorageError::UnsupportedSchema),
         }
         let snapshot: ScanSnapshot = serde_json::from_value(value)?;
         if !snapshot.validate() {

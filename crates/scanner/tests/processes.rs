@@ -157,7 +157,7 @@ fn cli_json_is_private_and_environment_secrets_are_not_inherited() {
     let (directory, path, _) = fixture("environment", "node");
     let output_path = directory.path().join("scan.json");
     let output = Command::new(env!("CARGO_BIN_EXE_dei"))
-        .args(["scan", "--probe-versions", "--output"])
+        .args(["scan", "--path-only", "--probe-versions", "--output"])
         .arg(&output_path)
         .env("PATH", path.parent().unwrap())
         .env("PATHEXT", ".EXE")

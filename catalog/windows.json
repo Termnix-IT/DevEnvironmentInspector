@@ -1,0 +1,22 @@
+{
+  "tools": [
+    {"id":"node","application_names":["Node.js"],"winget_ids":["OpenJS.NodeJS","OpenJS.NodeJS.LTS"],"executable_dirs":[""]},
+    {"id":"python","application_names":["Python"],"winget_ids":[],"executable_dirs":[""]},
+    {"id":"java","application_names":["Java(TM) SE Development Kit","Eclipse Temurin JDK with Hotspot","OpenJDK"],"winget_ids":[],"executable_dirs":["bin"]},
+    {"id":"go","application_names":["Go Programming Language","Go Programming Language amd64","Go Programming Language 386","Go Programming Language arm64"],"winget_ids":["Golang.Go"],"executable_dirs":["bin"]},
+    {"id":"rust","application_names":["Rustup: the Rust toolchain installer"],"winget_ids":["Rustlang.Rustup"],"executable_dirs":["bin"]},
+    {"id":"codex","application_names":["Codex"],"winget_ids":[],"executable_dirs":[""]},
+    {"id":"claude","application_names":["Claude Code"],"winget_ids":[],"executable_dirs":[""]},
+    {"id":"gemini","application_names":["Gemini CLI"],"winget_ids":[],"executable_dirs":[""]},
+    {"id":"git","application_names":["Git","Git version"],"winget_ids":["Git.Git"],"executable_dirs":["cmd","bin"]},
+    {"id":"docker","application_names":["Docker Desktop"],"winget_ids":["Docker.DockerDesktop"],"executable_dirs":["resources/bin"]},
+    {"id":"terraform","application_names":["Terraform"],"winget_ids":["Hashicorp.Terraform"],"executable_dirs":[""]},
+    {"id":"aws","application_names":["AWS Command Line Interface v2","AWS Command Line Interface"],"winget_ids":["Amazon.AWSCLI"],"executable_dirs":[""]},
+    {"id":"kubectl","application_names":["kubectl"],"winget_ids":["Kubernetes.kubectl"],"executable_dirs":[""]},
+    {"id":"npm","application_names":[],"winget_ids":[],"executable_dirs":[""]},
+    {"id":"pnpm","application_names":["pnpm"],"winget_ids":["pnpm.pnpm"],"executable_dirs":[""]},
+    {"id":"pip","application_names":[],"winget_ids":[],"executable_dirs":["Scripts"]},
+    {"id":"uv","application_names":["uv"],"winget_ids":["astral-sh.uv"],"executable_dirs":[""]},
+    {"id":"winget","application_names":["App Installer"],"winget_ids":["Microsoft.AppInstaller"],"executable_dirs":[""]}
+  ]
+}

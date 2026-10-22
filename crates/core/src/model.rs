@@ -8,7 +8,7 @@ use time::OffsetDateTime;
 
 use crate::{Catalog, KnownCommand, ToolDefinition};
 
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -113,6 +113,17 @@ pub struct Installation {
     pub detected_at: OffsetDateTime,
 }
 
+/// 製品登録は実行ファイルの存在・CLIの利用可否を保証しない。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Registration {
+    pub id: String,
+    pub package_id: Option<String>,
+    pub install_location: Option<PathBuf>,
+    pub sources: Vec<SourceEvidence>,
+    #[serde(with = "time::serde::rfc3339")]
+    pub detected_at: OffsetDateTime,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DetectionStatus {
@@ -147,11 +158,17 @@ pub enum DiagnosticCode {
     AvailabilityUnverified,
     WrapperNotExecuted,
     ConflictingVersionEvidence,
+    VersionFormatDifference,
     PathEntriesSkipped,
     UnsupportedPathExtension,
     CandidateLimitReached,
     ProviderFailed,
     ScanDeadlineReached,
+    MetadataInvalid,
+    MetadataLimitReached,
+    RegisteredExecutableUnresolved,
+    RegisteredToolNotOnPath,
+    ConflictingRegistrationEvidence,
 }
 
 /// 自由形式の外部出力は保持しない。表示文言はUI側でcodeから生成できる。
@@ -169,7 +186,15 @@ pub struct ToolScan {
     pub tool: ToolDefinition,
     pub status: DetectionStatus,
     pub installations: Vec<Installation>,
+    #[serde(default)]
+    pub registrations: Vec<Registration>,
     pub diagnostics: Vec<Diagnostic>,
+}
+
+impl ToolScan {
+    pub fn has_evidence(&self) -> bool {
+        !self.installations.is_empty() || !self.registrations.is_empty()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -210,13 +235,24 @@ impl ScanSnapshot {
         }
         let mut ids = HashSet::new();
         for tool in &self.tools {
-            if (tool.status == DetectionStatus::NotFound && !tool.installations.is_empty())
-                || (tool.status == DetectionStatus::Detected && tool.installations.is_empty())
+            if (tool.status == DetectionStatus::NotFound && tool.has_evidence())
+                || (tool.status == DetectionStatus::Detected && !tool.has_evidence())
                 || tool.installations.len() > 16
+                || tool.registrations.len() > 16
             {
                 return false;
             }
             let mut local_ids = HashSet::new();
+            for registration in &tool.registrations {
+                if registration.id.is_empty()
+                    || !ids.insert(&registration.id)
+                    || registration.sources.is_empty()
+                    || (self.path_exposure == PathExposure::Omit
+                        && registration.install_location.is_some())
+                {
+                    return false;
+                }
+            }
             for installation in &tool.installations {
                 if installation.id.is_empty()
                     || !ids.insert(&installation.id)
@@ -256,6 +292,16 @@ impl ScanSnapshot {
                 PathExposure::Omit => None,
                 PathExposure::RedactHome => installation
                     .executable_path
+                    .as_deref()
+                    .and_then(|path| redact_home(path, home)),
+            };
+        }
+        for registration in result.tools.iter_mut().flat_map(|t| &mut t.registrations) {
+            registration.install_location = match exposure {
+                PathExposure::Full => registration.install_location.take(),
+                PathExposure::Omit => None,
+                PathExposure::RedactHome => registration
+                    .install_location
                     .as_deref()
                     .and_then(|path| redact_home(path, home)),
             };

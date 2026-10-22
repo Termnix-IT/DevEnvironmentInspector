@@ -13,6 +13,7 @@ cargo build --release --bin dei-mcp
 | 起動オプション | 意味 |
 | --- | --- |
 | 指定なし | 受動スキャン、パス省略、バージョン実行不可 |
+| `--path-only` | 情報源をPATHだけに制限。既定ではWindows追加プロバイダーも使用 |
 | `--paths redact-home` | ホーム以下を`<HOME>`に置換。ホーム不明ならパス省略 |
 | `--paths full` | 完全な実行ファイルパスを公開 |
 | `--allow-version-probes` | `scan_environment`からの明示的なバージョン取得を許可 |
@@ -41,7 +42,7 @@ MCPプロトコルの`tools/list`は、以下の5つの操作を列挙する。�
 
 | ツール | 引数 | 結果 |
 | --- | --- | --- |
-| `list_tools` | `{}` | 直近スキャンで実体候補を検出したツール。候補がないツールは除外 |
+| `list_tools` | `{}` | 直近スキャンで実体候補または製品登録を検出したツール。両方ないツールは除外 |
 | `get_tool_info` | `{"tool_id":"node"}` | 既知ツールの実体・バージョン・取得元・診断。対象内の未検出ツールも返す |
 | `check_command` | `{"command":"node"}` | 既知コマンドのキャッシュ済み候補とPATH上の優先候補ID。コマンドは実行しない |
 | `get_environment_summary` | `{}` | 対象件数、検出件数、カテゴリ別件数、警告・エラー・注意事項 |
@@ -50,6 +51,8 @@ MCPプロトコルの`tools/list`は、以下の5つの操作を列挙する。�
 ツール名、コマンド名、実行引数、ファイルパス、保存先を任意指定する機能はない。未知フィールド、シェル文、実行ファイルパス、未知のコマンドを拒否する。スキャン対象は重複のない1〜18件のカタログIDに限定する。`tool_ids`を省略または`null`にすると全体が対象になる。
 
 応答は`structuredContent`と、同じJSONのテキスト表現を`content`に含める。共通メタデータには`schema_version`、`target_os`、`started_at`、`completed_at`、`providers`、`path_exposure`、`scanned_tool_ids`、全体の`diagnostics`を含める。バージョンを実行しなかった候補の状態は`not_requested`であり、取得済みとして推測しない。
+
+Phase 3からスキーマは2となり、ツールに`registrations`を含める。製品の申告バージョンは`registrations[].sources[].reported_version`、実行取得したバージョンは`installations[].version`に分ける。`installation_count`と`registration_count`（カテゴリ別は`installations`と`registrations`）は別集計であり、合計をインストール数と解釈しない。登録だけの検出でも`list_tools`に現れるが、`check_command`に架空の候補や優先IDは追加しない。登録の配置パスにも起動時の公開ポリシーを適用する。
 
 ## キャッシュと処理負荷
 
