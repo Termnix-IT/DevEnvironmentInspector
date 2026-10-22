@@ -7,7 +7,8 @@ import { Icon, ToolMark } from './ui/Icon';
 import type { IconName } from './ui/Icon';
 import { ToolDetails } from './ui/ToolDetails';
 import { WindowControls } from './ui/WindowControls';
-import { categories, dateTime, providers, statuses, versionSummary } from './ui/labels';
+import { categories, dateTime, diagnosticLabels, providers, scanDuration, versionSummary } from './ui/labels';
+import { diagnosticArea, primaryPathCandidate, toolStatus } from './ui/toolPresentation';
 
 type Page = 'inventory' | 'diagnostics' | 'mcp' | 'settings';
 const pages: { id: Page; label: string; icon: IconName }[] = [
@@ -39,7 +40,7 @@ export default function App({ api = tauriApi }: { api?: InspectorApi }) {
   const actions = useRef<HTMLDetailsElement>(null);
   const snapshot = inspector.view?.snapshot;
   const detectedCount = snapshot?.tools.filter((tool) => tool.installations.length || tool.registrations.length).length ?? 0;
-  const notices = snapshot ? [...snapshot.diagnostics, ...snapshot.tools.flatMap((scan) => scan.diagnostics)].filter((item) => item.class === 'caution' || item.severity !== 'info').length : 0;
+  const notices = snapshot ? [...snapshot.diagnostics, ...snapshot.tools.flatMap((scan) => scan.diagnostics)].filter((item) => item.severity !== 'info').length : 0;
   const searchTerm = query.trim().toLocaleLowerCase();
   const visibleTools = inspector.catalog?.tools.filter((tool) => (category === 'all' || tool.category === category) && `${tool.name} ${tool.commands.join(' ')}`.toLocaleLowerCase().includes(searchTerm)) ?? [];
   const statusMessage = inspector.loadingCatalog ? 'カタログを読み込み中…' : inspector.operation === 'scan' ? 'スキャン中…' : inspector.operation === 'export' ? '保存先を選択してください。' : inspector.operation === 'paths' ? 'パス表示を変更しています。' : inspector.notice ?? (snapshot ? '検出結果を表示中' : '未スキャン');
@@ -83,7 +84,7 @@ export default function App({ api = tauriApi }: { api?: InspectorApi }) {
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand" title="Dev Environment Inspector" data-tauri-drag-region="deep"><Icon name="brand" /><h1>EnvKit</h1><span className="mcp-badge">MCP</span></div>
-      <nav aria-label="メインナビゲーション">{pages.map((item) => <button key={item.id} className="nav-item" aria-current={page === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}><Icon name={item.icon} /><span>{item.label}</span>{item.id === 'diagnostics' && notices > 0 && <span className="nav-count">{notices}</span>}</button>)}</nav>
+      <nav aria-label="メインナビゲーション">{pages.map((item) => <button key={item.id} className="nav-item" aria-current={page === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}><Icon name={item.icon} /><span>{item.label}</span>{item.id === 'diagnostics' && notices > 0 && <span className="nav-count" title={`警告・エラー ${notices}件`}>{notices}</span>}</button>)}</nav>
       <div className="sidebar-caption"><span className="inline-dot neutral" />LOCAL ENVIRONMENT<span>Windows · 読み取り専用</span></div>
     </aside>
     <main className="main-panel">
@@ -101,18 +102,19 @@ export default function App({ api = tauriApi }: { api?: InspectorApi }) {
           <div className="inventory-tools"><div className="search-box"><Icon name="search" /><input ref={search} type="search" aria-label="ツールを検索" placeholder="Search tools…" value={query} onChange={(event) => setQuery(event.target.value)} /><kbd>Ctrl K</kbd></div><select className="category-filter" aria-label="カテゴリで絞り込み" value={category} onChange={(event) => setCategory(event.target.value as Category | 'all')}><option value="all">All</option>{Object.entries(categories).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
           {!snapshot && <div className="scan-intro"><span>開発環境を確認する準備ができました。</span><button className="text-button" disabled={inspector.busy || !inspector.catalog} onClick={() => void inspector.scan(probeVersions, pathOnly)}>スキャンを開始 <span aria-hidden="true">↗</span></button></div>}
           <table className="tool-table"><colgroup><col className="tool-column" /><col className="version-column" /><col className="status-column" /><col className="type-column" /><col className="more-column" /></colgroup>
-            <thead><tr><th scope="col">Tool</th><th scope="col">Version</th><th scope="col">Status</th><th scope="col">Type</th><th scope="col"><span className="sr-only">詳細</span></th></tr></thead>
+            <thead><tr><th scope="col">Tool</th><th scope="col">Version <span className="column-context">PATH優先</span></th><th scope="col">Status</th><th scope="col">Type</th><th scope="col"><span className="sr-only">詳細</span></th></tr></thead>
             <tbody>{visibleTools.map((tool) => {
               const scan = snapshot?.tools.find((item) => item.tool.id === tool.id);
               const expanded = inspector.selectedId === tool.id;
-              const hasCaution = scan?.diagnostics.some((item) => item.severity !== 'info');
-              const state = !scan ? 'neutral' : hasCaution || scan.status === 'incomplete' ? 'caution' : scan.status === 'detected' ? 'positive' : 'neutral';
-              const stateLabel = !scan ? '未スキャン' : `${statuses[scan.status]}${hasCaution ? '・警告あり' : ''}`;
+              const state = toolStatus(scan);
+              const primary = primaryPathCandidate(scan);
+              const notes = scan?.diagnostics.filter((item) => item.severity !== 'info' && diagnosticArea(item.code) !== '実行確認') ?? [];
+              const noteLabel = [...(scan?.status === 'incomplete' ? ['探索範囲の一部は未確認です。'] : []), ...notes.map((item) => diagnosticLabels[item.code])].join(' ');
               return <Fragment key={tool.id}>
                 <tr className="tool-row" data-expanded={expanded} id={`tool-${tool.id}`}>
                   <th scope="row"><button className="tool-toggle" aria-label={`${tool.name}の詳細`} aria-expanded={expanded} aria-controls={expanded ? `details-${tool.id}` : undefined} onClick={() => inspector.setSelectedId(expanded ? null : tool.id)}><Icon name="chevron" className="row-chevron" /><ToolMark id={tool.id} /><span>{tool.name}</span></button></th>
-                  <td className="version-cell"><span title={versionSummary(scan)}>{versionSummary(scan)}</span></td>
-                  <td><span className={`status-dot ${state}`} role="img" aria-label={stateLabel} title={stateLabel} /></td>
+                  <td className="version-cell"><span title={primary ? `${primary.command}: このアプリのPATH優先候補の実測値。${state.detail}` : 'このアプリのPATH優先候補の実測値は未確認です。'}>{versionSummary(scan)}</span></td>
+                  <td><span className="tool-status" title={state.detail}><span className={`status-dot ${state.tone}`} role="img" aria-label={`${tool.name}: ${state.label}。${state.detail}`} /><span>{state.label}</span></span>{noteLabel && <button className="tool-notes" aria-label={`${tool.name}の補足情報`} title={noteLabel} onClick={() => inspector.setSelectedId(tool.id)}>補足</button>}</td>
                   <td><span className="type-badge">{categories[tool.category]}</span></td>
                   <td><button className="row-more" aria-label={`${tool.name}の${expanded ? '詳細を閉じる' : 'その他の情報'}`} onClick={() => inspector.setSelectedId(expanded ? null : tool.id)}><Icon name="more" /></button></td>
                 </tr>
@@ -121,11 +123,17 @@ export default function App({ api = tauriApi }: { api?: InspectorApi }) {
             })}</tbody>
           </table>
           {!visibleTools.length && !inspector.loadingCatalog && inspector.catalog && <div className="empty-state"><Icon name="search" /><h3>一致するツールがありません</h3><p>ツール名やコマンド名で検索できます。</p><button className="quiet-button" onClick={() => { setQuery(''); setCategory('all'); }}>絞り込みを解除</button></div>}
-          <p className="inventory-note">{visibleTools.length} / {inspector.catalog?.tools.length ?? 0} tools<span>未検出は未インストールの断定ではありません。</span></p>
+          <p className="inventory-note">{visibleTools.length} / {inspector.catalog?.tools.length ?? 0} tools<span>実測済みは固定バージョン引数での成功を示します。PATHはこのアプリの環境です。</span></p>
         </section>}
         {page === 'diagnostics' && <section className="document-page" aria-label="環境診断">
           <div className="page-heading"><h2>診断結果</h2><span className="help">確認済み / 注意</span><span className="page-meta">{snapshot ? `${snapshot.diagnostics.length + snapshot.tools.reduce((count, scan) => count + scan.diagnostics.length, 0)}件` : '未スキャン'}</span></div>
           {!snapshot ? <div className="empty-state"><p>スキャン後に診断結果を表示します。</p></div> : <>
+            <dl className="scan-metadata" aria-label="表示中のスキャン日時">
+              <div><dt>スキャン開始</dt><dd><time dateTime={snapshot.started_at}>{dateTime(snapshot.started_at)}</time></dd></div>
+              <div><dt>完了</dt><dd><time dateTime={snapshot.completed_at}>{dateTime(snapshot.completed_at)}</time></dd></div>
+              <div><dt>所要時間</dt><dd>{scanDuration(snapshot.started_at, snapshot.completed_at)}</dd></div>
+            </dl>
+            <p className="help diagnostic-context">日時は表示中のスキャンの記録です。診断ごとの発生時刻は記録していません。</p>
             <DiagnosticTable snapshot={snapshot} onSelectTool={selectDiagnosticTool} />
             <p className="help page-footnote">情報源：{snapshot.providers.map((provider) => providers[provider]).join(' · ')}</p>
             <p className="help">複数候補の存在だけでは異常と判定しません。</p>
@@ -133,7 +141,8 @@ export default function App({ api = tauriApi }: { api?: InspectorApi }) {
         </section>}
         {page === 'mcp' && <section className="document-page" aria-label="MCP連携">
           <div className="page-heading"><h2>MCPサーバー</h2><span className="type-badge">stdio</span><span className="page-meta">独立プロセス</span></div>
-          <div className="server-info"><code>dei-mcp.exe</code><span className="help">クライアントの接続状態は監視していません。</span></div>
+          <div className="server-info"><code>dei-mcp.exe</code><span className="connection-state"><span className="inline-dot neutral" />接続状態：未確認</span><span className="help">クライアントの接続状態は監視していません。</span></div>
+          <p className="help mcp-connection-note">stdio対応の設定案内です。この画面ではサーバーの起動・クライアントとの接続成功を確認していません。</p>
           <div className="mcp-layout">
             <section aria-label="公開MCPツール"><h3 className="compact-heading">公開ツール <span className="count-badge">5</span></h3>
               <table className="mcp-tools"><thead><tr><th scope="col">Tool</th><th scope="col">機能</th></tr></thead><tbody>{mcpTools.map(([name, description]) => <tr key={name}><td><code>{name}</code></td><td>{description}</td></tr>)}</tbody></table>
@@ -167,6 +176,6 @@ export default function App({ api = tauriApi }: { api?: InspectorApi }) {
         </section>}
       </div>
     </main>
-    <footer className="statusbar"><button className="statusbar-mcp" title="MCP連携の設定と仕様" onClick={() => navigate('mcp')}><Icon name="link" />MCP / stdio</button><span className="statusbar-count">{snapshot ? `${detectedCount} tools · ${notices} notices` : `${inspector.catalog?.tools.length ?? '—'} tools`}</span><span className="statusbar-message" role="status" aria-live="polite">{statusMessage}</span><span className="statusbar-time"><Icon name="clock" /><span>Last scanned</span><time dateTime={snapshot?.completed_at}>{snapshot ? dateTime(snapshot.completed_at) : '—'}</time></span></footer>
+    <footer className="statusbar"><button className="statusbar-mcp" title="MCPはstdio対応。接続状態は監視していません。" onClick={() => navigate('mcp')}><Icon name="link" />MCP：接続未確認</button><span className="statusbar-count" title="警告・エラーの診断件数。未検証などの情報は含みません。">{snapshot ? `${detectedCount} tools · ${notices} notices` : `${inspector.catalog?.tools.length ?? '—'} tools`}</span><span className="statusbar-message" role="status" aria-live="polite">{statusMessage}</span><span className="statusbar-time"><Icon name="clock" /><span>Last scanned</span><time dateTime={snapshot?.completed_at}>{snapshot ? dateTime(snapshot.completed_at) : '—'}</time></span></footer>
   </div>;
 }

@@ -43,7 +43,11 @@ describe('環境インスペクターの画面と通信境界', () => {
   it('受動スキャン後に申告と実測を分け、登録だけのツールも詳細展開できる', async () => {
     const client = await scanned();
     expect(client.scan).toHaveBeenCalledWith({ probe_versions: false, path_only: false, paths: 'redact_home' });
-    expect(screen.getByText('申告 24.1.0')).toBeTruthy();
+    const nodeRow = screen.getByRole('button', { name: 'Node.jsの詳細' }).closest('tr')!;
+    expect(within(nodeRow).getByText('未確認')).toBeTruthy();
+    expect(within(nodeRow).queryByText(/24\.1\.0/)).toBeNull();
+    fireEvent.click(screen.getByText('アクセス・取得方法・申告値'));
+    expect(screen.getByText(/申告バージョン 24\.1\.0/)).toBeTruthy();
     expect(screen.getByText(/未取得（CLI未実行）/)).toBeTruthy();
     expect(screen.getByText('<HOME>/開発 tools/node.exe')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Pythonの詳細' }));
@@ -142,7 +146,9 @@ describe('環境インスペクターの画面と通信境界', () => {
     measured.snapshot.tools[0]!.installations[0]!.version = { status: 'success', version: '24.22.1', exit_code: 0, source: 'native_executable' };
     const client = api(); client.scan.mockResolvedValueOnce(measured);
     await scanned(client);
-    expect(screen.getByText('実測 24.22.1 / 申告 24.1.0')).toBeTruthy();
+    const nodeRow = screen.getByRole('button', { name: 'Node.jsの詳細' }).closest('tr')!;
+    expect(within(nodeRow).getByText('24.22.1')).toBeTruthy();
+    expect(within(nodeRow).queryByText(/24\.1\.0/)).toBeNull();
     expect(screen.getByText('24.22.1（取得成功）')).toBeTruthy();
     fireEvent.click(screen.getByText('アクセス・取得方法・申告値'));
     expect(screen.getByText('ネイティブ実行')).toBeTruthy();
@@ -169,7 +175,7 @@ describe('環境インスペクターの画面と通信境界', () => {
     expect(screen.queryByRole('region', { name: 'Node.jsの詳細情報' })).toBeNull();
     fireEvent.click(node);
     expect(screen.getByRole('region', { name: 'Node.jsの詳細情報' })).toBeTruthy();
-    expect(screen.getByRole('img', { name: '検出あり・警告あり' })).toBeTruthy();
+    expect(screen.getByRole('img', { name: /Node.js: 未検証/ }).classList.contains('neutral')).toBe(true);
   });
 
   it('診断画面から該当ツールの詳細へ戻り、検索条件も解除する', async () => {
@@ -195,6 +201,7 @@ describe('環境インスペクターの画面と通信境界', () => {
     expect(within(table).getByText('Environment')).toBeTruthy();
     expect(within(table).getAllByText('レジストリ').length).toBeGreaterThan(0);
     expect(within(table).getByText('node-1')).toBeTruthy();
+    expect(within(within(table).getAllByRole('row')[1]!).getByText('確認済み・エラー')).toBeTruthy();
   });
 
   it('MCP画面は5ツールを案内し、未確認の接続状態を接続済みにしない', async () => {
@@ -205,7 +212,40 @@ describe('環境インスペクターの画面と通信境界', () => {
     expect(screen.getByText(/接続状態は監視していません/)).toBeTruthy();
     expect(screen.queryByText(/MCP connected|MCP接続済み/)).toBeNull();
     expect(client.scan).toHaveBeenCalledTimes(1);
-    expect(document.querySelector('.statusbar-count')?.textContent).toBe('2 tools · 2 notices');
+    expect(screen.getByText('接続状態：未確認')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'MCP：接続未確認' })).toBeTruthy();
+    expect(document.querySelector('.statusbar-count')?.textContent).toBe('2 tools · 1 notices');
+  });
+
+  it('Diagnosticsは表示中のスキャンの開始・完了・所要時間を示し、失敗した再スキャンで書き換えない', async () => {
+    const client = await scanned();
+    navigate('Diagnostics');
+    const metadata = screen.getByLabelText('表示中のスキャン日時');
+    expect(metadata.querySelectorAll('time')[0]?.getAttribute('datetime')).toBe(view.snapshot.started_at);
+    expect(metadata.querySelectorAll('time')[1]?.getAttribute('datetime')).toBe(view.snapshot.completed_at);
+    expect(within(metadata).getByText('1.0秒')).toBeTruthy();
+    const previous = metadata.textContent;
+    client.scan.mockRejectedValueOnce({ code: 'scan_failed' });
+    fireEvent.click(screen.getByRole('button', { name: '再スキャン' }));
+    await screen.findByRole('alert');
+    expect(screen.getByLabelText('表示中のスキャン日時').textContent).toBe(previous);
+  });
+
+  it('探索未完了・取得元の不一致があっても実測結果を黄色に置き換えず、補足と診断に残す', async () => {
+    const measured = structuredClone(view);
+    const node = measured.snapshot.tools[0]!;
+    node.status = 'incomplete';
+    node.installations[0]!.version = { status: 'success', version: '24.22.1', exit_code: 0, source: 'native_executable' };
+    node.diagnostics.push({ code: 'conflicting_version_evidence', class: 'caution', severity: 'warning', provider: null, installation_id: 'node-1' });
+    const client = api(); client.scan.mockResolvedValueOnce(measured);
+    await scanned(client);
+    expect(screen.getByRole('img', { name: /Node.js: 実測済み/ }).classList.contains('positive')).toBe(true);
+    expect(screen.getByRole('button', { name: 'Node.jsの補足情報' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Node.jsの補足情報' }));
+    expect(screen.getByRole('region', { name: 'Node.jsの詳細情報' })).toBeTruthy();
+    navigate('Diagnostics');
+    expect(screen.getByText('情報照合')).toBeTruthy();
+    expect(screen.getByText(/同じ実行候補の申告値・実測値が食い違います/)).toBeTruthy();
   });
 
   it('Ctrl+Kで別ページから検索欄へ移動し、操作メニューはEscapeで閉じる', async () => {

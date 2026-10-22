@@ -3,6 +3,7 @@ import type { Installation, SourceEvidence, ToolDefinition, ToolScan } from '../
 import { Diagnostics } from './Diagnostics';
 import { Icon } from './Icon';
 import { dateTime, installMethods, providers, statuses, versionStatuses } from './labels';
+import { primaryPathCandidate } from './toolPresentation';
 
 function Sources({ sources }: { sources: SourceEvidence[] }) {
   return <ul className="source-list">{sources.map((source, index) => <li key={`${source.provider}-${index}`}>
@@ -27,7 +28,7 @@ function Candidate({ installation }: { installation: Installation }) {
       <dl>
         <dt>実行ファイル</dt><dd><code>{installation.executable_path ?? 'パスを省略しています'}</code></dd>
         <dt>情報源</dt><dd>{installation.sources.map((s) => providers[s.provider]).join(' · ') || '不明'}</dd>
-        <dt>PATH</dt><dd><span className={`inline-dot ${installation.on_path ? 'positive' : 'neutral'}`} />{installation.on_path ? `登録あり（解決順 ${Number(installation.path_order) + 1}）` : 'PATH上では未確認'}</dd>
+        <dt>PATH</dt><dd><span className={`inline-dot ${installation.on_path ? 'positive' : 'neutral'}`} />{installation.on_path ? `登録あり（解決順 ${installation.path_order === null ? '不明' : installation.path_order + 1}）` : 'PATH上では未確認'}</dd>
         <dt>実測バージョン</dt><dd>{installation.version.version ?? '未取得'}（{versionStatuses[installation.version.status]}）</dd>
         <dt>検出日時</dt><dd><time dateTime={installation.detected_at}>{dateTime(installation.detected_at)}</time></dd>
       </dl>
@@ -50,9 +51,11 @@ function Candidate({ installation }: { installation: Installation }) {
 }
 
 export function ToolDetails({ tool, scan }: { tool: ToolDefinition; scan?: ToolScan }) {
-  const [first, ...others] = scan?.installations ?? [];
+  const primary = primaryPathCandidate(scan);
+  const first = primary ?? scan?.installations[0];
+  const others = scan?.installations.filter((item) => item !== first) ?? [];
   return <section aria-label={`${tool.name}の詳細情報`} className="tool-details" id={`details-${tool.id}`}>
-    <div className="detail-caption"><span><code>{tool.commands.join(' / ')}</code></span><span>{scan ? statuses[scan.status] : '未スキャン'}</span></div>
+    <div className="detail-caption"><span><code>{tool.commands.join(' / ')}</code>{first && <> · {primary ? `PATH優先候補（${primary.command}）` : '検出候補（PATH優先順は未確認）'}</>}</span><span>探索：{scan ? statuses[scan.status] : '未スキャン'}</span></div>
     {!scan ? <p className="muted">スキャンを実行すると、実行候補・製品登録・バージョンを確認できます。</p> : <>
       {first ? <Candidate key={`${first.id}-${first.executable_path}`} installation={first} /> : <p className="muted">確認できた実行候補はありません。</p>}
       <div className="detail-sections">
