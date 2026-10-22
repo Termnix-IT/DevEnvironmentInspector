@@ -13,6 +13,8 @@ const paths = {
   export: <><path d="M12 3v12m-4-4 4 4 4-4M4 16v5h16v-5" /></>,
   clock: <><circle cx="12" cy="12" r="9" /><path d="M12 6v6l4 2" /></>,
   close: <path d="m6 6 12 12M6 18 18 6" />,
+  minimize: <path d="M5 12h14" />,
+  maximize: <rect x="5" y="5" width="14" height="14" rx=".5" />,
   check: <path d="m5 12 4 4L19 6" />,
   terminal: <><rect x="2" y="4" width="20" height="16" rx="3" /><path d="m6 9 3 3-3 3m6 0h5" /></>,
   brand: <><path d="M8 8V4h10v4M16 16v4H6v-4M7 11l-3 3 3 3m10-10 3 3-3 3M10 10h4v4h-4Z" /></>,

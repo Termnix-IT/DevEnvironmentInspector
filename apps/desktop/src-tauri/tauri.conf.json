@@ -10,7 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [{ "label": "main", "title": "Dev Environment Inspector", "width": 1200, "height": 820, "minWidth": 760, "minHeight": 600, "dragDropEnabled": false }],
+    "windows": [{ "label": "main", "title": "Dev Environment Inspector", "width": 1280, "height": 720, "minWidth": 760, "minHeight": 600, "decorations": false, "resizable": true, "dragDropEnabled": false }],
     "security": {
       "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'",
       "devCsp": "default-src 'self'; connect-src ipc: http://ipc.localhost http://127.0.0.1:1420 ws://127.0.0.1:1420; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'",
