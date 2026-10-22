@@ -20,6 +20,8 @@ time = { version = "0.3.55", features = ["serde", "serde-well-known"] }
 tempfile = "3.27.0"
 tokio = { version = "1.54.1", features = ["rt", "macros", "process", "io-util", "time"] }
 process-wrap = { version = "10.0.1", default-features = false, features = ["tokio1", "job-object", "creation-flags", "kill-on-drop", "process-group"] }
+cap-std = "4.0.3"
+node-semver = "2.2.0"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

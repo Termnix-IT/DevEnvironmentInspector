@@ -6,6 +6,7 @@ pub mod npm_provider;
 pub mod path_provider;
 pub mod platform;
 pub mod process;
+pub mod projects;
 pub mod provider;
 pub mod registry_provider;
 pub mod version;

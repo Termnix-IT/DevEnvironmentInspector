@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 const paths = {
+  folder: <path d="M3 7V5h6l2 2h10v13H3Zm0 3h18" />,
   inventory: <><rect x="3" y="3" width="6" height="6" rx="1" /><rect x="15" y="3" width="6" height="6" rx="1" /><rect x="3" y="15" width="6" height="6" rx="1" /><rect x="15" y="15" width="6" height="6" rx="1" /></>,
   diagnostics: <path d="M2 12h5l3-8 4 16 3-8h5" />,
   link: <><path d="m10 14 4-4M8 16l-2 2a4 4 0 0 1-6-6l5-5a4 4 0 0 1 6 0M16 8l2-2a4 4 0 0 1 6 6l-5 5a4 4 0 0 1-6 0" transform="translate(1 0) scale(.9)" /></>,

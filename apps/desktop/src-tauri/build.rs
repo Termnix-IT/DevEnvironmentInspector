@@ -5,6 +5,14 @@ fn main() {
             "get_snapshot",
             "scan_environment",
             "export_snapshot",
+            "choose_project_folder",
+            "list_projects",
+            "get_project_snapshot",
+            "scan_project",
+            "register_project",
+            "update_project",
+            "remove_project",
+            "export_project",
         ]),
     ))
     .expect("Tauriのビルド設定を読み込めませんでした");

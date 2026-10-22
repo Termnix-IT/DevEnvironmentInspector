@@ -28,7 +28,7 @@ fn body(result: &CallToolResult) -> &Value {
 }
 
 #[tokio::test]
-async fn discovers_exactly_five_tools_with_strict_schemas_and_annotations() {
+async fn discovers_eight_tools_with_strict_schemas_and_annotations() {
     let (server, _, backend) = common::server(ServerPolicy::default());
     let tools = server.tools();
     assert_eq!(
@@ -38,7 +38,10 @@ async fn discovers_exactly_five_tools_with_strict_schemas_and_annotations() {
             "get_tool_info",
             "check_command",
             "get_environment_summary",
-            "scan_environment"
+            "scan_environment",
+            "list_projects",
+            "get_project_environment",
+            "list_project_packages"
         ]
     );
     for tool in &tools {
@@ -56,6 +59,17 @@ async fn discovers_exactly_five_tools_with_strict_schemas_and_annotations() {
             .all(|value| value != "cmd")
     );
     assert_eq!(backend.calls.load(Ordering::SeqCst), 0);
+    let package_schema = &tools[7].input_schema["properties"];
+    assert_eq!(package_schema["limit"]["minimum"], 1);
+    assert_eq!(package_schema["limit"]["maximum"], 200);
+    assert_eq!(package_schema["offset"]["maximum"], 512);
+    assert_eq!(
+        package_schema["environment_id"]["enum"]
+            .as_array()
+            .unwrap()
+            .len(),
+        4
+    );
     let (enabled, _, _) = common::server(ServerPolicy {
         allow_version_probes: true,
         ..ServerPolicy::default()
@@ -265,6 +279,7 @@ async fn exposure_is_fixed_by_startup_policy_for_every_response() {
             paths,
             home: Some(PathBuf::from("C:/Fixture User")),
             allow_version_probes: false,
+            projects_file: None,
         });
         let result = invoke(&server, "get_tool_info", json!({"tool_id":"node"})).await;
         let path = body(&result)["tool"]["installations"][0]["executable_path"]
@@ -294,7 +309,7 @@ async fn official_sdk_client_reads_list_and_details() {
             .unwrap()
     });
     let client = ().serve(client_io).await.unwrap();
-    assert_eq!(client.list_all_tools().await.unwrap().len(), 5);
+    assert_eq!(client.list_all_tools().await.unwrap().len(), 8);
     let response = client
         .call_tool(
             rmcp::model::CallToolRequestParams::new("get_tool_info")
@@ -339,7 +354,7 @@ async fn official_sdk_supports_modern_discovery_without_legacy_initialize() {
         client.peer_info().unwrap().protocol_version,
         rmcp::model::ProtocolVersion::V_2026_07_28
     );
-    assert_eq!(client.list_all_tools().await.unwrap().len(), 5);
+    assert_eq!(client.list_all_tools().await.unwrap().len(), 8);
     let summary = client
         .call_tool(rmcp::model::CallToolRequestParams::new(
             "get_environment_summary",

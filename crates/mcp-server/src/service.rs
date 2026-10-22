@@ -10,6 +10,8 @@ use thiserror::Error;
 use tokio::sync::Semaphore;
 
 use crate::backend::{EnvironmentScanner, ScanFailure};
+use inspector_core::projects::ProjectError;
+use inspector_scanner::projects::service::ProjectService;
 
 pub const MIN_SCAN_INTERVAL: Duration = Duration::from_secs(2);
 
@@ -19,6 +21,7 @@ pub struct ServerPolicy {
     pub paths: PathExposure,
     pub home: Option<PathBuf>,
     pub allow_version_probes: bool,
+    pub projects_file: Option<PathBuf>,
 }
 
 impl Default for ServerPolicy {
@@ -28,6 +31,7 @@ impl Default for ServerPolicy {
             paths: PathExposure::Omit,
             home: None,
             allow_version_probes: false,
+            projects_file: None,
         }
     }
 }
@@ -85,6 +89,7 @@ struct Inner {
     policy: ServerPolicy,
     cache: Mutex<Cache>,
     scan_slot: Arc<Semaphore>,
+    projects: Option<ProjectService>,
 }
 
 #[derive(Clone)]
@@ -98,6 +103,14 @@ impl InspectionService {
         backend: Arc<dyn EnvironmentScanner>,
         policy: ServerPolicy,
     ) -> Self {
+        Self::new_with_projects(catalog, backend, policy, None)
+    }
+    pub fn new_with_projects(
+        catalog: Catalog,
+        backend: Arc<dyn EnvironmentScanner>,
+        policy: ServerPolicy,
+        projects: Option<ProjectService>,
+    ) -> Self {
         Self {
             inner: Arc::new(Inner {
                 catalog,
@@ -105,6 +118,7 @@ impl InspectionService {
                 policy,
                 cache: Mutex::new(Cache::default()),
                 scan_slot: Arc::new(Semaphore::new(1)),
+                projects,
             }),
         }
     }
@@ -114,6 +128,12 @@ impl InspectionService {
     }
     pub fn policy(&self) -> &ServerPolicy {
         &self.inner.policy
+    }
+    pub fn projects(&self) -> Result<&ProjectService, ProjectError> {
+        self.inner
+            .projects
+            .as_ref()
+            .ok_or(ProjectError::ProjectStorageUnavailable)
     }
 
     pub fn tool_id_for_command(&self, command: &str) -> Result<&str, ServiceError> {

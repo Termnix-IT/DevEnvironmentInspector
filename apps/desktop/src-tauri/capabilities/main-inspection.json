@@ -5,6 +5,8 @@
   "local": true,
   "permissions": [
     "allow-get-catalog", "allow-get-snapshot", "allow-scan-environment", "allow-export-snapshot",
+    "allow-choose-project-folder", "allow-list-projects", "allow-get-project-snapshot", "allow-scan-project",
+    "allow-register-project", "allow-update-project", "allow-remove-project", "allow-export-project",
     "core:window:allow-minimize", "core:window:allow-toggle-maximize", "core:window:allow-close",
     "core:window:allow-start-dragging", "core:window:allow-internal-toggle-maximize"
   ]
